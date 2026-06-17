@@ -1,8 +1,8 @@
 <!-- 
   =========================================================================
-  FILE: Index.html (FRONTEND USER INTERFACE) - VERSI FINAL TANPA FOTO
-  - Fix: Sistem Pembersih Otomatis (Membersihkan sisa foto dari DB lama)
-  - Fix: Penyimpanan baris ke bawah dijamin lancar tanpa batas (Infinite Rows)
+  FILE: Index.html (FRONTEND USER INTERFACE) - VERSI FINAL STABIL
+  - Fix Utama: Mengunci versi CDN Babel (7.23.6) dan React (18.2.0)
+  - Mencegah error "SyntaxError: import declarations..." dari unpkg
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -15,49 +15,55 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- React & ReactDOM (Versi Stabil 18.2.0 via CDNJS) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- Babel Standalone -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Babel Standalone (Dikunci di versi 7.23.6 yang aman dari Bug Import) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
 
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-
-  <!-- HTML5 QR Code Scanner -->
-  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <!-- Lucide Icons & HTML5 QR Code Scanner (Dikunci versinya) -->
+  <script src="https://unpkg.com/lucide@0.344.0"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
 
   <script>
     const scriptURL = 'https://script.google.com/macros/s/AKfycby8DulHa_EF1FOUTNoM9oPaKW8f1ZZ8f9w6zNenx-2dIx6TjyXWyKKqUlPSpdL_QwwL/exec';
 
     window.ambilDataDariSpreadsheet = async function() {
       try {
-        const response = await fetch(scriptURL);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 detik timeout
+
+        const response = await fetch(scriptURL, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+           console.warn("Server HTTP Error:", response.status);
+           return null;
+        }
+
         const text = await response.text(); 
         try {
           const hasil = JSON.parse(text);
           if (hasil.status === 'success') return hasil.data;
           return null;
         } catch(e) {
-          console.error("Apps Script tidak merespons JSON. Pastikan sudah Deploy New Version!");
+          console.error("Apps Script tidak merespons JSON yang valid.");
           return null;
         }
       } catch (error) {
+        console.error("Gagal mengambil data:", error.message);
         return null;
       }
     };
 
     window.simpanDataKeSpreadsheet = async function(kunciData, dataArrayBaru) {
       try {
-        // PEMBERSIHAN DATA (CLEANUP OTOMATIS)
-        // Membuang sisa data "foto" lama dari array agar payload pengiriman ke Google Sheet 
-        // menjadi sangat ringan, sehingga bisa menyimpan ribuan baris ke bawah tanpa macet.
         let cleanedData = dataArrayBaru;
         if (Array.isArray(dataArrayBaru)) {
             cleanedData = dataArrayBaru.map(item => {
                 if (item && typeof item === 'object') {
-                    const { foto, ...rest } = item; // Memisahkan properti foto agar terbuang
+                    const { foto, ...rest } = item;
                     return rest;
                 }
                 return item;
@@ -73,14 +79,11 @@
         const text = await response.text();
         try {
           const hasil = JSON.parse(text);
-          if (hasil.status === 'success') {
-            return true;
-          } else {
-            alert("GAGAL MENYIMPAN KE DATABASE:\n" + hasil.message);
-            return false;
-          }
+          if (hasil.status === 'success') return true;
+          alert("GAGAL MENYIMPAN KE DATABASE:\n" + hasil.message);
+          return false;
         } catch(e) {
-          alert("GAGAL MENYIMPAN: Sistem Google Apps Script gagal merespons. Pastikan script URL sudah disesuaikan dan di-Deploy Versi Baru.");
+          alert("GAGAL MENYIMPAN: Sistem gagal merespons.");
           return false;
         }
       } catch (error) {
@@ -117,8 +120,10 @@
       useEffect(() => {
         const renderIcon = () => {
           if (window.lucide && spanRef.current) {
-            spanRef.current.innerHTML = `<i data-lucide="${name}"></i>`;
-            window.lucide.createIcons({ root: spanRef.current, attrs: { width: size, height: size } });
+            try {
+              spanRef.current.innerHTML = `<i data-lucide="${name}"></i>`;
+              window.lucide.createIcons({ root: spanRef.current, attrs: { width: size, height: size } });
+            } catch (err) { console.error("Lucide Error", err); }
           }
         };
         renderIcon();
@@ -157,6 +162,7 @@
     const KeyRound = (p) => <LucideIcon name="key-round" {...p} />;
     const Edit = (p) => <LucideIcon name="edit" {...p} />;
     const List = (p) => <LucideIcon name="list" {...p} />;
+    const ImageIcon = (p) => <LucideIcon name="image" {...p} />;
 
     const initialWarga = [
       { id: 'H-01', nama: 'Budi Santoso', alamat: 'Blok H No 1', hp: '08123456789' },
@@ -180,7 +186,7 @@
     };
 
     const LoginScreen = ({ ctx }) => {
-      const { accounts, setCurrentUser, setIsPublicView, setActiveTab, isDarkMode, theme, ui, settings } = ctx;
+      const { accounts = [], setCurrentUser, setIsPublicView, setActiveTab, isDarkMode, theme, ui, settings } = ctx;
       const [username, setUsername] = useState('');
       const [password, setPassword] = useState('');
       const [error, setError] = useState('');
@@ -199,41 +205,41 @@
       };
 
       return (
-        <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-          <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
-            <div className="text-center mb-8">
-              <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${theme.light}`}>
-                <ShieldCheck size={40} className={theme.text} />
+          <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
+            <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
+              <div className="text-center mb-8">
+                <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${theme?.light || 'bg-blue-50'}`}>
+                  <ShieldCheck size={40} className={theme?.text || 'text-blue-600'} />
+                </div>
+                <h1 className="text-2xl font-black">{settings?.webName || 'e-Jimpitan'}</h1>
+                <p className="text-sm text-gray-500 mt-1">{settings?.tagline || 'Sistem Keuangan Warga'}</p>
               </div>
-              <h1 className="text-2xl font-black">{settings.webName}</h1>
-              <p className="text-sm text-gray-500 mt-1">{settings.tagline || 'Sistem Keamanan & Keuangan Warga'}</p>
-            </div>
-            <form onSubmit={handleLogin} className="space-y-5">
-              {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm font-semibold">{error}</div>}
-              <div>
-                <label className="block text-sm font-bold mb-2">Username</label>
-                <input type="text" required className={`w-full p-3 rounded-lg border ${ui.input}`} value={username} onChange={e => setUsername(e.target.value)} placeholder="Masukkan username..." />
+              <form onSubmit={handleLogin} className="space-y-5">
+                {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm font-semibold">{error}</div>}
+                <div>
+                  <label className="block text-sm font-bold mb-2">Username</label>
+                  <input type="text" required className={`w-full p-3 rounded-lg border ${ui?.input || ''}`} value={username} onChange={e => setUsername(e.target.value)} placeholder="Masukkan username..." />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-2">Password</label>
+                  <input type="password" required className={`w-full p-3 rounded-lg border ${ui?.input || ''}`} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+                </div>
+                <button type="submit" className={`w-full p-3 rounded-lg font-bold text-white shadow-lg transition hover:opacity-90 flex items-center justify-center gap-2 ${theme?.main || 'bg-blue-600'}`}>
+                  <LogIn size={20} /> Login Petugas
+                </button>
+              </form>
+              <div className="mt-8 text-center border-t border-gray-200 dark:border-gray-700 pt-6">
+                <button type="button" onClick={() => setIsPublicView(true)} className="w-full flex items-center justify-center gap-2 p-3 rounded-lg font-bold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition">
+                  &larr; Kembali ke Portal Warga
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-bold mb-2">Password</label>
-                <input type="password" required className={`w-full p-3 rounded-lg border ${ui.input}`} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
-              </div>
-              <button type="submit" className={`w-full p-3 rounded-lg font-bold text-white shadow-lg transition hover:opacity-90 flex items-center justify-center gap-2 ${theme.main}`}>
-                <LogIn size={20} /> Login Petugas
-              </button>
-            </form>
-            <div className="mt-8 text-center border-t border-gray-200 dark:border-gray-700 pt-6">
-              <button onClick={() => setIsPublicView(true)} className="w-full flex items-center justify-center gap-2 p-3 rounded-lg font-bold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition">
-                &larr; Kembali ke Portal Warga
-              </button>
             </div>
           </div>
-        </div>
-      );
-    };
+        );
+      };
 
     const Dashboard = ({ ctx }) => {
-      const { jadwal, absensi, jimpitan, settings, currentUser, isPublicView, isAdmin, theme, ui, getWargaName, isDarkMode, warga } = ctx;
+      const { jadwal, absensi, jimpitan, settings, currentUser, isPublicView, isAdmin, theme, ui, getWargaName } = ctx;
       
       const myJadwalIds = isAdmin || isPublicView 
         ? jadwal.map(j => j.id) 
@@ -244,10 +250,10 @@
         : absensi.filter(a => myJadwalIds.includes(a.jadwalId));
       
       const totalJimpitan = jimpitan.reduce((sum, item) => sum + Number(item.nominal), 0);
-      const totalDenda = absensi.filter(a => a.status === 'Alpa').length * settings.nominalDenda;
+      const totalDenda = absensi.filter(a => a.status === 'Alpa').length * (settings.nominalDenda || 0);
 
       const availableYears = useMemo(() => {
-        const years = [...new Set(jimpitan.map(j => j.tahun))].sort().reverse();
+        const years = [...new Set(jimpitan.map(j => j.tahun))].filter(Boolean).sort().reverse();
         if (years.length === 0) return [new Date().getFullYear().toString()];
         return years;
       }, [jimpitan]);
@@ -261,7 +267,7 @@
         
         jimpitan.forEach(curr => {
           if (curr.tahun === chartYear && dataMap[curr.bulan] !== undefined) {
-            dataMap[curr.bulan] += Number(curr.nominal);
+            dataMap[curr.bulan] += Number(curr.nominal) || 0;
           }
         });
         
@@ -285,19 +291,19 @@
       const totalAbsen = absenStats.reduce((sum, item) => sum + item.value, 0);
 
       const rekapWarga = useMemo(() => {
-        return warga.map(w => {
+        return ctx.warga.map(w => {
           const txJimpitan = jimpitan.filter(t => t.wargaId === w.id);
           const txAbsen = absensi.filter(t => t.wargaId === w.id);
           const alpaCount = txAbsen.filter(t => t.status === 'Alpa').length;
           return {
             ...w,
-            totalJimpitan: txJimpitan.reduce((sum, t) => sum + t.nominal, 0),
+            totalJimpitan: txJimpitan.reduce((sum, t) => sum + (Number(t.nominal) || 0), 0),
             hadir: txAbsen.filter(t => t.status === 'Hadir').length,
             alpa: alpaCount,
-            denda: alpaCount * settings.nominalDenda,
+            denda: alpaCount * (settings.nominalDenda || 0),
           };
         });
-      }, [warga, jimpitan, absensi, settings.nominalDenda]);
+      }, [ctx.warga, jimpitan, absensi, settings.nominalDenda]);
 
       return (
         <div className="space-y-6 animate-fade-in print-content">
@@ -595,7 +601,7 @@
     };
 
     const JadwalDanAbsen = ({ ctx }) => {
-      const { isAdmin, jadwal, setJadwal, absensi, setAbsensi, jimpitan, setJimpitan, currentUser, warga, getWargaName, syncData, showToast, theme, ui } = ctx;
+      const { isAdmin, jadwal, setJadwal, absensi, setAbsensi, jimpitan, setJimpitan, currentUser, getWargaName, syncData, showToast, theme, ui } = ctx;
       const [subTab, setSubTab] = useState('input_absen'); 
       const [selectedJadwalId, setSelectedJadwalId] = useState('');
       const [absenData, setAbsenData] = useState({}); 
@@ -604,10 +610,14 @@
       const [inputDate, setInputDate] = useState(getLocalToday());
 
       const availableJadwalForDate = useMemo(() => {
+        if (!inputDate) return []; // SAFETY NET: Hindari Error Tanggal Kosong
         const dateParts = inputDate.split('-'); 
+        if (dateParts.length !== 3) return [];
+        
         const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
         const dayName = days[dateObj.getDay()];
+        if (!dayName) return [];
 
         let filtered = jadwal.filter(j => j.hari.toLowerCase() === dayName.toLowerCase());
         if (!isAdmin) {
@@ -637,6 +647,8 @@
 
       const handleSaveAbsen = (e) => {
         e.preventDefault();
+        if (!inputDate) return showToast("Pilih tanggal terlebih dahulu!");
+        
         const dateParts = inputDate.split('-'); 
         const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -786,7 +798,7 @@
                     <option value="">-- Pilih Jadwal --</option>
                     {availableJadwalForDate.map(j => <option key={j.id} value={j.id}>Regu Hari {j.hari} ({j.periode})</option>)}
                   </select>
-                  {availableJadwalForDate.length === 0 && <p className="text-xs text-red-500 mt-1">Regu Anda tidak dijadwalkan pada hari ini.</p>}
+                  {availableJadwalForDate.length === 0 && inputDate && <p className="text-xs text-red-500 mt-1">Regu Anda tidak dijadwalkan pada hari ini.</p>}
                 </div>
               </div>
 
@@ -933,13 +945,13 @@
                       <label className="block text-sm font-semibold mb-1">Koordinator</label>
                       <select required className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newJadwal.koordinatorId} onChange={e => setNewJadwal({...newJadwal, koordinatorId: e.target.value})}>
                         <option value="">-- Pilih --</option>
-                        {warga.map(w => <option key={w.id} value={w.id}>{w.nama} ({w.id})</option>)}
+                        {ctx.warga.map(w => <option key={w.id} value={w.id}>{w.nama} ({w.id})</option>)}
                       </select>
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold mb-3">Anggota Regu (Multiselect)</label>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {warga.filter(w => w.id !== newJadwal.koordinatorId).map(w => (
+                        {ctx.warga.filter(w => w.id !== newJadwal.koordinatorId).map(w => (
                           <label key={w.id} className="flex items-center gap-3 p-2 border rounded cursor-pointer">
                             <input type="checkbox" checked={newJadwal.anggotaIds.includes(w.id)} onChange={(e) => setNewJadwal({...newJadwal, anggotaIds: e.target.checked ? [...newJadwal.anggotaIds, w.id] : newJadwal.anggotaIds.filter(id => id !== w.id)})} />
                             <span className="text-sm">{w.nama}</span>
@@ -989,7 +1001,7 @@
                         defaultValue=""
                       >
                         <option value="" disabled>+ Tambah Anggota Ronda...</option>
-                        {warga.filter(w => w.id !== j.koordinatorId && !j.anggotaIds.includes(w.id)).map(w => (
+                        {ctx.warga.filter(w => w.id !== j.koordinatorId && !j.anggotaIds.includes(w.id)).map(w => (
                           <option key={w.id} value={w.id}>{w.nama}</option>
                         ))}
                       </select>
@@ -1011,10 +1023,14 @@
       const [inputDate, setInputDate] = useState(getLocalToday());
       
       const availableJadwalForDate = useMemo(() => {
+        if (!inputDate) return []; // SAFETY NET
         const dateParts = inputDate.split('-');
+        if (dateParts.length !== 3) return [];
         const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
         const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
         const selectedDayName = days[dateObj.getDay()];
+        if (!selectedDayName) return [];
+
         let filtered = jadwal.filter(j => j.hari.toLowerCase() === selectedDayName.toLowerCase());
         if (!isAdmin) filtered = filtered.filter(j => j.koordinatorId === currentUser?.wargaId);
         return filtered;
@@ -1040,6 +1056,16 @@
       const startCamera = () => {
         setIsCameraActive(true);
         setTimeout(() => {
+          if (!document.getElementById("qr-reader")) {
+             setIsCameraActive(false);
+             return;
+          }
+          if (!window.Html5Qrcode) {
+             showToast("Sistem Scanner gagal memuat, pastikan internet stabil.");
+             setIsCameraActive(false);
+             return;
+          }
+          
           const html5QrCode = new window.Html5Qrcode("qr-reader");
           scannerRef.current = html5QrCode;
           
@@ -1065,7 +1091,7 @@
             showToast("Gagal akses kamera. Pastikan perangkat Anda mendukung atau berikan izin browser.");
             setIsCameraActive(false);
           });
-        }, 200); 
+        }, 300); // Sedikit delay agar DOM siap
       };
 
       const stopCamera = async () => {
@@ -1084,7 +1110,9 @@
       };
 
       useEffect(() => {
-        return () => stopCamera();
+        return () => {
+           if (scannerRef.current) stopCamera();
+        };
       }, []);
       
       const handleManualSubmit = (e) => {
@@ -1103,6 +1131,7 @@
 
       const handleQuickSave = (nom) => {
         if (!scannedWarga) return;
+        if (!inputDate) return showToast("Tanggal jimpitan belum dipilih!");
         
         const dateParts = inputDate.split('-');
         const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
@@ -1151,15 +1180,15 @@
                 setInputDate(e.target.value);
               }} 
             />
-            {availableJadwalForDate.length === 0 ? (
+            {availableJadwalForDate.length === 0 && inputDate ? (
               <p className="text-xs text-red-500 mt-2 text-center bg-red-100 dark:bg-red-900/30 p-2 rounded">
                 Tidak ada regu yang dijadwalkan pada hari ini.
               </p>
-            ) : (
+            ) : availableJadwalForDate.length > 0 ? (
               <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 text-center font-bold bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded">
                 Regu Bertugas: Hari {availableJadwalForDate[0].hari}
               </p>
-            )}
+            ) : null}
           </div>
 
           {!scannedWarga && (
@@ -1241,9 +1270,12 @@
       const rekapWarga = useMemo(() => {
         let filteredWargaIds = null;
         if (filterHari !== 'Semua') {
-           const jw = jadwal.find(j => j.hari.toLowerCase() === filterHari.toLowerCase());
-           if (jw) filteredWargaIds = [jw.koordinatorId, ...jw.anggotaIds];
-           else filteredWargaIds = [];
+           // BUG FIX: Menggunakan .filter agar tidak error jika ada 2 regu di hari yang sama
+           const matchingJadwal = jadwal.filter(j => j.hari.toLowerCase() === filterHari.toLowerCase());
+           filteredWargaIds = [];
+           matchingJadwal.forEach(jw => {
+               filteredWargaIds.push(jw.koordinatorId, ...jw.anggotaIds);
+           });
         }
 
         return warga
@@ -1254,15 +1286,15 @@
             const alpaCount = txAbsen.filter(t => t.status === 'Alpa').length;
             return {
               ...w,
-              totalJimpitan: txJimpitan.reduce((sum, t) => sum + t.nominal, 0),
+              totalJimpitan: txJimpitan.reduce((sum, t) => sum + (Number(t.nominal) || 0), 0),
               hadir: txAbsen.filter(t => t.status === 'Hadir').length,
               alpa: alpaCount,
-              denda: alpaCount * settings.nominalDenda,
+              denda: alpaCount * (settings.nominalDenda || 0),
             };
           });
       }, [warga, filteredJimpitan, filteredAbsensi, settings.nominalDenda, filterHari, jadwal]);
 
-      const grandTotalJimpitan = filteredJimpitan.reduce((sum, j) => sum + j.nominal, 0);
+      const grandTotalJimpitan = filteredJimpitan.reduce((sum, j) => sum + (Number(j.nominal) || 0), 0);
       const grandTotalDenda = rekapWarga.reduce((sum, w) => sum + w.denda, 0);
 
       const rekapHarian = useMemo(() => {
@@ -1276,7 +1308,7 @@
             const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
             harianMap[key] = { tanggal: t.tanggal, hariInput: days[d.getDay()], jadwalId: t.jadwalId, total: 0, anggotaAlpa: [] };
           }
-          harianMap[key].total += t.nominal;
+          harianMap[key].total += (Number(t.nominal) || 0);
         });
 
         filteredAbsensi.forEach(a => {
@@ -1293,7 +1325,7 @@
         });
         
         return Object.values(harianMap)
-          .filter(r => filterHari === 'Semua' || r.hariInput.toLowerCase() === filterHari.toLowerCase())
+          .filter(r => filterHari === 'Semua' || (r.hariInput && r.hariInput.toLowerCase() === filterHari.toLowerCase()))
           .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
       }, [filteredJimpitan, filteredAbsensi, getWargaName, filterHari]);
 
@@ -1502,7 +1534,7 @@
                                 {r.anggotaAlpa.map((a, idx) => (
                                   <li key={idx} className="flex flex-col sm:flex-row sm:items-center gap-1">
                                     <div><span className={a.status === 'Alpa' ? 'text-red-500 font-bold' : 'text-orange-500'}>[{a.status}]</span> {a.nama}</div>
-                                    {a.status === 'Alpa' && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded ml-1">Denda: Rp {settings.nominalDenda.toLocaleString('id-ID')}</span>}
+                                    {a.status === 'Alpa' && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded ml-1">Denda: Rp {(settings.nominalDenda || 0).toLocaleString('id-ID')}</span>}
                                   </li>
                                 ))}
                               </ul>
@@ -1601,7 +1633,7 @@
                                 {data.isMember ? (
                                   <select 
                                     className={`w-full p-2 rounded border ${ui.input} text-sm ${data.status === 'Alpa' ? 'text-red-500 font-bold' : ''}`}
-                                    value={data.status}
+                                    value={data.status || ''}
                                     onChange={(e) => {
                                       const newData = [...editFormData];
                                       newData[idx].status = e.target.value;
@@ -1685,7 +1717,6 @@
         showToast('Akun baru berhasil ditambahkan!');
       };
 
-      // FUNGSI UPLOAD LOGO YANG DIBUAT SPESIFIK UNTUK MENU INI SAJA
       const handleLogoUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1961,6 +1992,7 @@
       const [absensi, setAbsensi] = useState([]);
       const [jimpitan, setJimpitan] = useState([]);
       const [accounts, setAccounts] = useState([]);
+      const [dbError, setDbError] = useState(false);
       
       const [settings, setSettings] = useState({ 
         webName: 'e-Jimpitan RT 01', 
@@ -1970,21 +2002,31 @@
         nominalDenda: 10000 
       });
 
-      const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('isDarkMode') === 'true');
-      const [themeColor, setThemeColor] = useState(() => localStorage.getItem('themeColor') || 'blue');
+      const [isDarkMode, setIsDarkMode] = useState(() => {
+        try { return localStorage.getItem('isDarkMode') === 'true'; } 
+        catch(e) { return false; }
+      });
+      const [themeColor, setThemeColor] = useState(() => {
+        try { return localStorage.getItem('themeColor') || 'blue'; } 
+        catch(e) { return 'blue'; }
+      });
 
-      useEffect(() => { localStorage.setItem('isDarkMode', isDarkMode); }, [isDarkMode]);
-      useEffect(() => { localStorage.setItem('themeColor', themeColor); }, [themeColor]);
+      useEffect(() => { 
+        try { localStorage.setItem('isDarkMode', isDarkMode); } catch(e) {} 
+      }, [isDarkMode]);
+      
+      useEffect(() => { 
+        try { localStorage.setItem('themeColor', themeColor); } catch(e) {} 
+      }, [themeColor]);
 
       useEffect(() => {
         const muatData = async () => {
           setIsLoadingDB(true);
+          setDbError(false);
           try {
             const dbData = await window.ambilDataDariSpreadsheet();
             
-            if (dbData && Object.keys(dbData).length > 0) {
-              // MEMBERSIHKAN SISA FOTO SAAT LOAD: 
-              // Jika di DB masih ada data foto warga dari inputan lama, buang di sini agar UI lebih cepat
+            if (dbData && typeof dbData === 'object' && Object.keys(dbData).length > 0) {
               const rawWarga = dbData.warga && dbData.warga.length > 0 ? dbData.warga : initialWarga;
               const cleanWarga = rawWarga.map(w => {
                  if (w && typeof w === 'object') {
@@ -1999,17 +2041,21 @@
               setAbsensi(dbData.absensi && dbData.absensi.length > 0 ? dbData.absensi : initialAbsensi);
               setJimpitan(dbData.jimpitan && dbData.jimpitan.length > 0 ? dbData.jimpitan : initialJimpitan);
               setAccounts(dbData.accounts && dbData.accounts.length > 0 ? dbData.accounts : initialAccounts);
-              if (dbData.settings) {
-                setSettings({
-                  ...dbData.settings,
-                  tagline: dbData.settings.tagline || 'Sistem Keamanan & Keuangan Warga'
-                });
-              }
+              
+              const rawSettings = dbData.settings || {};
+              setSettings({
+                webName: rawSettings.webName || 'e-Jimpitan RT 01',
+                tagline: rawSettings.tagline || 'Sistem Keamanan & Keuangan Warga',
+                logoUrl: rawSettings.logoUrl || null,
+                nominalJimpitan: Number(rawSettings.nominalJimpitan) || 2000,
+                nominalDenda: Number(rawSettings.nominalDenda) || 10000
+              });
             } else {
               setWarga(initialWarga); setJadwal(initialJadwal); setAbsensi(initialAbsensi); setJimpitan(initialJimpitan); setAccounts(initialAccounts);
             }
           } catch (err) {
             console.error("Gagal terhubung ke Database:", err);
+            setDbError(true);
             setWarga(initialWarga); setJadwal(initialJadwal); setAbsensi(initialAbsensi); setJimpitan(initialJimpitan); setAccounts(initialAccounts);
           } finally {
             setIsLoadingDB(false);
@@ -2028,7 +2074,9 @@
         setTimeout(() => setToastMessage(null), 3000);
       };
 
-      const theme = colorPalettes[themeColor];
+      // SAFETY NET: Hindari fatal error jika localStorage theme tidak valid
+      const theme = colorPalettes[themeColor] || colorPalettes['blue'];
+      
       const ui = {
         bg: isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-800',
         sidebar: isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200',
@@ -2079,6 +2127,11 @@
       if (isPublicView) {
         return (
           <div className={`min-h-screen font-sans ${ui.bg}`}>
+            {dbError && (
+               <div className="bg-red-500 text-white text-center text-xs py-1 px-4 font-semibold">
+                  Gagal terhubung ke server database (Google Apps Script). Menggunakan data default (Offline Mode).
+               </div>
+            )}
             <header className={`${theme.main} text-white shadow-md sticky top-0 z-50`}>
               <div className="max-w-7xl mx-auto px-4">
                 <div className="flex justify-between items-center h-20">
@@ -2090,7 +2143,7 @@
                     )}
                     <div className="flex flex-col justify-center">
                       <h1 className="text-lg sm:text-2xl font-black leading-tight">{settings.webName}</h1>
-                      <span className="text-[10px] sm:text-sm opacity-90 leading-tight mt-0.5">{settings.tagline || 'Sistem Keamanan & Keuangan Warga'}</span>
+                      <span className="text-[10px] sm:text-sm opacity-90 leading-tight mt-0.5">{settings.tagline}</span>
                     </div>
                   </div>
 
@@ -2126,6 +2179,12 @@
               <span className="font-semibold text-sm">{toastMessage}</span>
             </div>
           )}
+          
+          {dbError && (
+             <div className="fixed bottom-5 right-5 z-[998] bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded shadow-lg text-xs font-bold flex items-center gap-2">
+                <AlertCircle size={14} /> Offline Mode Aktif
+             </div>
+          )}
 
           {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden print-hide" onClick={() => setIsMobileMenuOpen(false)} />}
           
@@ -2138,7 +2197,7 @@
               )}
               <div className="flex flex-col justify-center min-w-0">
                 <h1 className="text-lg sm:text-xl font-black truncate leading-tight">{settings.webName}</h1>
-                <span className="text-[10px] sm:text-xs opacity-90 truncate leading-tight mt-0.5">{settings.tagline || 'Sistem Keamanan & Keuangan Warga'}</span>
+                <span className="text-[10px] sm:text-xs opacity-90 truncate leading-tight mt-0.5">{settings.tagline}</span>
               </div>
             </div>
             
