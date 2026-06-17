@@ -7,6 +7,7 @@
   - Fix Layout Print: Multi-page Print untuk PDF & Barcode
   - Fitur Baru: Filter Periode khusus Admin, Koordinator otomatis periode aktif
   - Fix: Dropdown "Pilih Regu Bertugas" pada input absen harian disaring berdasarkan periode aktif untuk semua role
+  - Fix: Dashboard (Portal Warga) "Jadwal Ronda Aktif" dan "Daftar Regu" hanya menampilkan data dari periode aktif
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -269,9 +270,13 @@
         return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
       }, [jadwal, settings.activePeriode]);
 
+      const activeJadwal = useMemo(() => {
+        return jadwal.filter(j => !activePeriod || j.periode === activePeriod);
+      }, [jadwal, activePeriod]);
+
       const myJadwalIds = isAdmin || isPublicView 
-        ? jadwal.map(j => j.id) 
-        : jadwal.filter(j => j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod)).map(j => j.id);
+        ? activeJadwal.map(j => j.id) 
+        : activeJadwal.filter(j => j.koordinatorId === currentUser?.wargaId).map(j => j.id);
       
       const filteredAbsensi = isAdmin || isPublicView 
         ? absensi 
@@ -353,7 +358,7 @@
             <div className={`${ui.card} p-6 rounded-xl flex items-center justify-between`}>
               <div>
                 <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">{isAdmin || isPublicView ? 'Jadwal Ronda Aktif' : 'Regu Saya'}</p>
-                <h3 className="text-3xl font-bold">{isAdmin || isPublicView ? jadwal.length : myJadwalIds.length} Regu</h3>
+                <h3 className="text-3xl font-bold">{isAdmin || isPublicView ? activeJadwal.length : myJadwalIds.length} Regu</h3>
               </div>
               <CalendarDays size={40} className="text-orange-500 opacity-80" />
             </div>
@@ -439,7 +444,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    {jadwal.map(j => (
+                    {activeJadwal.map(j => (
                       <tr key={j.id} className={`border-b ${ui.tableRow}`}>
                         <td className="p-4 font-bold">
                           {j.hari} <span className="text-xs font-normal bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded ml-2">{j.periode}</span>
@@ -453,6 +458,11 @@
                         </td>
                       </tr>
                     ))}
+                    {activeJadwal.length === 0 && (
+                      <tr>
+                        <td colSpan="3" className="p-4 text-center text-sm text-gray-500">Belum ada regu pada periode ini.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
