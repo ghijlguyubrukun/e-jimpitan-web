@@ -8,6 +8,7 @@
   - Fitur Baru: Filter Periode khusus Admin, Koordinator otomatis periode aktif
   - Fix: Dropdown "Pilih Regu Bertugas" pada input absen harian disaring berdasarkan periode aktif untuk semua role
   - Fix: Dashboard (Portal Warga) "Jadwal Ronda Aktif" dan "Daftar Regu" hanya menampilkan data dari periode aktif
+  - Fitur Baru: Auto Background Remover (menghilangkan background putih pada logo yang diupload)
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -232,7 +233,7 @@
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
               <div className="text-center mb-8">
                 {settings?.logoUrl ? (
-                  <img src={settings.logoUrl} alt="Logo" className="h-20 w-auto mx-auto mb-4 object-contain drop-shadow-md" />
+                  <img src={settings.logoUrl} alt="Logo" className="h-24 w-auto mx-auto mb-4 object-contain drop-shadow-md" />
                 ) : (
                   <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${theme?.light || 'bg-blue-50'}`}>
                     <ShieldCheck size={40} className={theme?.text || 'text-blue-600'} />
