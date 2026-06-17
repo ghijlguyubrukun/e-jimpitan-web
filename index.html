@@ -2,7 +2,9 @@
   =========================================================================
   FILE: Index.html (FRONTEND USER INTERFACE) - VERSI FINAL STABIL
   - Fix Utama: Mengunci versi CDN Babel (7.23.6) dan React (18.2.0)
-  - Mencegah error "SyntaxError: import declarations..." dari unpkg
+  - Fitur: Edit ID Barcode & Auto-Sort ID Barcode Data Warga
+  - Fitur: Export Excel Rekap Laporan Keuangan
+  - Fix Layout Print: Multi-page Print untuk PDF & Barcode
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -95,10 +97,28 @@
 
   <style>
     @media print {
-      body { background-color: white !important; color: black !important; }
+      * { overflow: visible !important; height: auto !important; }
+      body { background-color: white !important; color: black !important; font-size: 12px; }
       .print-hide { display: none !important; }
-      .print-content { padding: 0 !important; margin: 0 !important; }
+      .print-content { padding: 0 !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; }
       ::-webkit-scrollbar { display: none; }
+      
+      table { width: 100% !important; border-collapse: collapse !important; page-break-inside: auto; }
+      th, td { border: 1px solid #000 !important; padding: 4px 6px !important; color: black !important; page-break-inside: avoid; }
+      thead { display: table-header-group; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+
+      .shadow-xl, .shadow-lg, .shadow-md, .shadow-sm, .rounded-xl, .border-t-4, .rounded-2xl { 
+        box-shadow: none !important; border-radius: 0 !important; border-top-width: 1px !important; border: 1px solid #ccc !important; 
+      }
+      
+      .print\:block { display: block !important; }
+      .print\:inline-block { display: inline-block !important; }
+      .print\:w-\[22\%\] { width: 22% !important; }
+      .print\:m-\[1\%\] { margin: 1% !important; }
+      .print\:border-black { border-color: black !important; border: 1px solid black !important; }
+      .print\:shadow-none { box-shadow: none !important; }
+      .break-inside-avoid { page-break-inside: avoid !important; break-inside: avoid !important; }
     }
     .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -175,7 +195,7 @@
     const initialAbsensi = [];
     const initialJimpitan = [];
     const initialAccounts = [
-      { id: 1, username: 'admin', password: '123', role: 'Admin Jimpitan', nama: 'Bapak Sudirman', wargaId: null },
+      { id: 1, username: 'admin', password: '123', role: 'Admin Jimpitan', nama: 'Superadmin', wargaId: null },
       { id: 2, username: 'budi', password: '123', role: 'Koordinator', nama: 'Budi Santoso', wargaId: 'H-01' }
     ];
 
@@ -476,7 +496,7 @@
       const [showForm, setShowForm] = useState(false);
       const [isEditing, setIsEditing] = useState(false);
       
-      const [newWarga, setNewWarga] = useState({ idBaru: '', nama: '', alamat: '', hp: '' });
+      const [newWarga, setNewWarga] = useState({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '' });
 
       const handleAddWarga = async (e) => {
         e.preventDefault();
@@ -486,7 +506,11 @@
         
         let updatedWarga;
         if (isEditing) {
-          updatedWarga = warga.map(w => w.id === idCustom ? { ...w, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp } : w);
+          if (idCustom !== newWarga.oldId && warga.some(w => w.id === idCustom)) {
+            alert(`PERINGATAN: ID Barcode "${idCustom}" sudah dipakai oleh warga lain!\nSilakan masukkan ID atau Nomor Blok yang berbeda.`);
+            return;
+          }
+          updatedWarga = warga.map(w => w.id === newWarga.oldId ? { ...w, id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp } : w);
         } else {
           if(warga.some(w => w.id === idCustom)) {
             alert(`PERINGATAN: ID Barcode "${idCustom}" sudah dipakai oleh warga lain!\nSilakan masukkan ID atau Nomor Blok yang berbeda.`);
@@ -495,6 +519,7 @@
           updatedWarga = [...warga, { id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp }];
         }
         
+        updatedWarga.sort((a, b) => a.id.localeCompare(b.id));
         setWarga(updatedWarga);
         setShowForm(false);
         
@@ -502,7 +527,7 @@
         if (isSuccess) {
           showToast(isEditing ? 'Data warga berhasil diperbarui!' : 'Data warga berhasil ditambahkan!');
           setIsEditing(false);
-          setNewWarga({ idBaru: '', nama: '', alamat: '', hp: '' });
+          setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '' });
         } else {
           setWarga(warga);
           setShowForm(true);
@@ -510,7 +535,7 @@
       };
 
       const handleEditClick = (w) => {
-        setNewWarga({ idBaru: w.id, nama: w.nama, alamat: w.alamat, hp: w.hp });
+        setNewWarga({ oldId: w.id, idBaru: w.id, nama: w.nama, alamat: w.alamat, hp: w.hp });
         setIsEditing(true);
         setShowForm(true);
       };
@@ -528,7 +553,7 @@
         <div className="space-y-6 animate-fade-in">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold">Data Warga & Tim Ronda</h2>
-            <button onClick={() => { setShowForm(!showForm); setIsEditing(false); setNewWarga({ idBaru: '', nama: '', alamat: '', hp: '' }); }} className={`${theme.main} text-white px-4 py-2 rounded-lg shadow hover:opacity-90 flex items-center gap-2`}>
+            <button onClick={() => { setShowForm(!showForm); setIsEditing(false); setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '' }); }} className={`${theme.main} text-white px-4 py-2 rounded-lg shadow hover:opacity-90 flex items-center gap-2`}>
               {showForm ? <X size={18} /> : <Plus size={18} />} {showForm ? 'Batal' : 'Tambah Warga'}
             </button>
           </div>
@@ -538,7 +563,7 @@
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-1">ID Barcode (Cth: H-02, G-01, I-03)</label>
-                  <input required type="text" disabled={isEditing} className={`w-full p-2.5 rounded-lg border ${ui.input} uppercase ${isEditing ? 'opacity-60 cursor-not-allowed' : ''}`} value={newWarga.idBaru} onChange={e => setNewWarga({...newWarga, idBaru: e.target.value})} placeholder="Blok & No Rumah" />
+                  <input required type="text" className={`w-full p-2.5 rounded-lg border ${ui.input} uppercase`} value={newWarga.idBaru} onChange={e => setNewWarga({...newWarga, idBaru: e.target.value})} placeholder="Blok & No Rumah" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1">Nama Lengkap</label>
@@ -1270,7 +1295,6 @@
       const rekapWarga = useMemo(() => {
         let filteredWargaIds = null;
         if (filterHari !== 'Semua') {
-           // BUG FIX: Menggunakan .filter agar tidak error jika ada 2 regu di hari yang sama
            const matchingJadwal = jadwal.filter(j => j.hari.toLowerCase() === filterHari.toLowerCase());
            filteredWargaIds = [];
            matchingJadwal.forEach(jw => {
@@ -1330,6 +1354,39 @@
       }, [filteredJimpitan, filteredAbsensi, getWargaName, filterHari]);
 
       const handlePrint = () => window.print();
+
+      const handleExportExcel = () => {
+        let csvContent = "";
+        if (rekapTab === 'akumulasi') {
+          csvContent += "Nama Warga,Hadir Ronda,Alpa,Tunggakan Denda,Total Jimpitan\n";
+          rekapWarga.forEach(r => {
+            csvContent += `"${r.nama}",${r.hadir},${r.alpa},${r.denda},${r.totalJimpitan}\n`;
+          });
+          csvContent += `Total Keseluruhan,,,,,Rp ${grandTotalDenda},Rp ${filterHari === 'Semua' ? grandTotalJimpitan : 0}\n`;
+        } else {
+          csvContent += "Tanggal Input,Regu Bertugas,Kehadiran,Total Pemasukan\n";
+          rekapHarian.forEach(r => {
+            const jw = jadwal.find(x => x.id === r.jadwalId);
+            const regu = jw ? `Regu Hari ${jw.hari}` : "Tanpa Regu Terjadwal";
+            let kehadiran = r.anggotaAlpa.length > 0 
+              ? r.anggotaAlpa.map(a => `[${a.status}] ${a.nama}`).join(" | ") 
+              : "Hadir Semua";
+            csvContent += `"${r.tanggal}","${regu}","${kehadiran}",${r.total}\n`;
+          });
+          const totalPemasukanHarian = rekapHarian.filter(r => isAdmin || (currentUser?.role === 'Koordinator' && jadwal.find(j=>j.id===r.jadwalId)?.koordinatorId === currentUser.wargaId)).reduce((sum, r) => sum + r.total, 0);
+          csvContent += `Total Pemasukan Harian,,,,${totalPemasukanHarian}\n`;
+        }
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Rekap_Keuangan_${rekapTab}_${filterBulan}_${filterTahun}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
 
       const handleOpenEditModal = (tanggal, jadwalId) => {
         const jw = jadwal.find(x => x.id === jadwalId);
@@ -1441,6 +1498,9 @@
               <select className={`p-2 rounded border ${ui.input} text-sm flex-1 min-w-[100px]`} value={filterTahun} onChange={e => setFilterTahun(e.target.value)}>
                 {tahunOptions.map(t => <option key={t} value={t}>{t === 'Semua' ? 'Semua Tahun' : t}</option>)}
               </select>
+              <button onClick={handleExportExcel} className={`bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded shadow flex items-center gap-2 whitespace-nowrap`}>
+                <FileDown size={18} /> Excel
+              </button>
               <button onClick={handlePrint} className={`${theme.main} text-white px-4 py-2 rounded shadow flex items-center gap-2 whitespace-nowrap`}>
                 <FileDown size={18} /> Cetak
               </button>
@@ -1966,12 +2026,12 @@
         <div className="space-y-6 animate-fade-in print-content">
           <h2 className="text-2xl font-bold print-hide">Generate Barcode Rumah</h2>
           <button onClick={handlePrint} className={`${theme.main} text-white px-4 py-2 rounded print-hide`}>Cetak Barcode</button>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 print:block">
             {warga.map(w => (
-              <div key={w.id} className={`${ui.card} p-4 rounded-xl text-center print:border-black print:border`}>
+              <div key={w.id} className={`${ui.card} p-4 rounded-xl text-center print:inline-block print:w-[22%] print:m-[1%] print:border-black print:border print:shadow-none break-inside-avoid`}>
                 <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${w.id}`} alt="QR" className="w-32 h-32 mx-auto mb-2" />
-                <h3 className="font-bold">{w.nama}</h3>
-                <p className="text-sm font-mono mt-1">{w.id}</p>
+                <h3 className="font-bold print:text-xs">{w.nama}</h3>
+                <p className="text-sm font-mono mt-1 print:text-[10px]">{w.id}</p>
               </div>
             ))}
           </div>
