@@ -262,9 +262,15 @@
     const Dashboard = ({ ctx }) => {
       const { jadwal, absensi, jimpitan, settings, currentUser, isPublicView, isAdmin, theme, ui, getWargaName } = ctx;
       
+      const activePeriod = useMemo(() => {
+        if (settings.activePeriode) return settings.activePeriode;
+        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
+        return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
+      }, [jadwal, settings.activePeriode]);
+
       const myJadwalIds = isAdmin || isPublicView 
         ? jadwal.map(j => j.id) 
-        : jadwal.filter(j => j.koordinatorId === currentUser?.wargaId).map(j => j.id);
+        : jadwal.filter(j => j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod)).map(j => j.id);
       
       const filteredAbsensi = isAdmin || isPublicView 
         ? absensi 
@@ -627,7 +633,7 @@
     };
 
     const JadwalDanAbsen = ({ ctx }) => {
-      const { isAdmin, jadwal, setJadwal, absensi, setAbsensi, jimpitan, setJimpitan, currentUser, getWargaName, syncData, showToast, theme, ui } = ctx;
+      const { isAdmin, jadwal, setJadwal, absensi, setAbsensi, jimpitan, setJimpitan, currentUser, getWargaName, syncData, showToast, theme, ui, settings, setSettings } = ctx;
       const [subTab, setSubTab] = useState('input_absen'); 
       const [selectedJadwalId, setSelectedJadwalId] = useState('');
       const [absenData, setAbsenData] = useState({}); 
@@ -637,6 +643,12 @@
       const [inputDate, setInputDate] = useState(getLocalToday());
 
       const periodeOptionsJadwal = useMemo(() => ['Semua', ...new Set(jadwal.map(j => j.periode).filter(Boolean))], [jadwal]);
+
+      const activePeriod = useMemo(() => {
+        if (settings.activePeriode) return settings.activePeriode;
+        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
+        return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
+      }, [jadwal, settings.activePeriode]);
 
       const availableJadwalForDate = useMemo(() => {
         if (!inputDate) return []; // SAFETY NET: Hindari Error Tanggal Kosong
@@ -650,12 +662,10 @@
 
         let filtered = jadwal.filter(j => j.hari.toLowerCase() === dayName.toLowerCase());
         if (!isAdmin) {
-          const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
-          const activePeriod = allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
           filtered = filtered.filter(j => j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod));
         }
         return filtered;
-      }, [inputDate, jadwal, isAdmin, currentUser]);
+      }, [inputDate, jadwal, isAdmin, currentUser, activePeriod]);
 
       const [showAddJadwal, setShowAddJadwal] = useState(false);
       const [newJadwal, setNewJadwal] = useState({ hari: 'Senin', periode: '', koordinatorId: '', anggotaIds: [] });
@@ -664,8 +674,6 @@
       
       const displayedSchedules = mySchedules.filter(j => {
         if (isAdmin) return filterPeriodeJadwal === 'Semua' || j.periode === filterPeriodeJadwal;
-        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
-        const activePeriod = allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
         return !activePeriod || j.periode === activePeriod;
       });
 
@@ -925,8 +933,8 @@
               {/* TAMPILAN REGU UNTUK KOORDINATOR */}
               {!isAdmin && displayedSchedules.length > 0 && (
                 <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-bold text-sm text-gray-500 uppercase tracking-wider">Informasi Regu Anda</h4>
+                  <div className="mb-4">
+                    <h4 className="font-bold text-sm text-gray-500 uppercase tracking-wider">Informasi Regu Anda (Periode Aktif)</h4>
                   </div>
                   <div className="grid grid-cols-1 gap-6">
                     {displayedSchedules.map(j => (
@@ -961,12 +969,40 @@
             </div>
           ) : (
             <div className="space-y-6">
+              {isAdmin && (
+                <div className={`mb-4 p-5 rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 shadow-sm`}>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <h4 className="font-bold text-blue-800 dark:text-blue-300">Setel Periode Aktif</h4>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Koordinator hanya akan melihat & input jadwal pada periode yang dipilih ini.</p>
+                    </div>
+                    <select 
+                      className={`p-2.5 rounded-lg border ${ui.input} text-sm min-w-[200px] font-bold shadow-sm`}
+                      value={settings.activePeriode || ''}
+                      onChange={(e) => {
+                        const newSettings = {...settings, activePeriode: e.target.value};
+                        setSettings(newSettings);
+                        syncData("settings", newSettings);
+                        showToast("Periode aktif berhasil diperbarui!");
+                      }}
+                    >
+                      <option value="">-- Gunakan Periode Terbaru --</option>
+                      {periodeOptionsJadwal.filter(p => p !== 'Semua').map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                 <h3 className="text-xl font-bold">Daftar Regu Ronda</h3>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                  <select className={`p-2 rounded border ${ui.input} text-sm flex-1 sm:flex-none`} value={filterPeriodeJadwal} onChange={e => setFilterPeriodeJadwal(e.target.value)}>
-                    {periodeOptionsJadwal.map(p => <option key={p} value={p}>{p === 'Semua' ? 'Semua Periode' : p}</option>)}
-                  </select>
+                  {isAdmin && (
+                    <select className={`p-2 rounded border ${ui.input} text-sm flex-1 sm:flex-none`} value={filterPeriodeJadwal} onChange={e => setFilterPeriodeJadwal(e.target.value)}>
+                      {periodeOptionsJadwal.map(p => <option key={p} value={p}>{p === 'Semua' ? 'Semua Periode' : p}</option>)}
+                    </select>
+                  )}
                   <button onClick={() => setShowAddJadwal(!showAddJadwal)} className={`${theme.main} text-white px-4 py-2 rounded-lg shadow flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap`}>
                     {showAddJadwal ? <X size={18} /> : <Plus size={18} />} Tambah Jadwal Baru
                   </button>
@@ -1061,11 +1097,17 @@
     };
 
     const ScanJimpitan = ({ ctx }) => {
-      const { warga, jadwal, currentUser, isAdmin, jimpitan, setJimpitan, syncData, showToast, theme, ui } = ctx;
+      const { warga, jadwal, currentUser, isAdmin, jimpitan, setJimpitan, syncData, showToast, theme, ui, settings } = ctx;
       
       const [scannedWarga, setScannedWarga] = useState(null);
       const [manualId, setManualId] = useState('');
       const [inputDate, setInputDate] = useState(getLocalToday());
+
+      const activePeriod = useMemo(() => {
+        if (settings.activePeriode) return settings.activePeriode;
+        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
+        return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
+      }, [jadwal, settings.activePeriode]);
       
       const availableJadwalForDate = useMemo(() => {
         if (!inputDate) return []; // SAFETY NET
@@ -1078,12 +1120,10 @@
 
         let filtered = jadwal.filter(j => j.hari.toLowerCase() === selectedDayName.toLowerCase());
         if (!isAdmin) {
-          const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
-          const activePeriod = allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
           filtered = filtered.filter(j => j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod));
         }
         return filtered;
-      }, [inputDate, jadwal, isAdmin, currentUser]);
+      }, [inputDate, jadwal, isAdmin, currentUser, activePeriod]);
 
       const [selectedJadwalId, setSelectedJadwalId] = useState('');
 
@@ -1315,11 +1355,16 @@
       const [editFormData, setEditFormData] = useState([]); 
       const [manualJimpitanEdit, setManualJimpitanEdit] = useState('');
 
+      const activePeriod = useMemo(() => {
+        if (settings.activePeriode) return settings.activePeriode;
+        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
+        return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : 'Semua';
+      }, [jadwal, settings.activePeriode]);
+
       const appliedFilterPeriode = useMemo(() => {
         if (isAdmin) return filterPeriode;
-        const allPeriods = [...new Set(jadwal.map(j => j.periode).filter(Boolean))];
-        return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : 'Semua';
-      }, [isAdmin, filterPeriode, jadwal]);
+        return activePeriod;
+      }, [isAdmin, filterPeriode, activePeriod]);
 
       const filteredJimpitan = jimpitan.filter(j => {
         const matchBulan = filterBulan === 'Semua' || j.bulan === filterBulan;
@@ -2118,7 +2163,8 @@
         tagline: 'Sistem Keamanan & Keuangan Warga',
         logoUrl: null, 
         nominalJimpitan: 2000, 
-        nominalDenda: 10000 
+        nominalDenda: 10000,
+        activePeriode: ''
       });
 
       const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -2167,7 +2213,8 @@
                 tagline: rawSettings.tagline || 'Sistem Keamanan & Keuangan Warga',
                 logoUrl: rawSettings.logoUrl || null,
                 nominalJimpitan: Number(rawSettings.nominalJimpitan) || 2000,
-                nominalDenda: Number(rawSettings.nominalDenda) || 10000
+                nominalDenda: Number(rawSettings.nominalDenda) || 10000,
+                activePeriode: rawSettings.activePeriode || ''
               });
             } else {
               setWarga(initialWarga); setJadwal(initialJadwal); setAbsensi(initialAbsensi); setJimpitan(initialJimpitan); setAccounts(initialAccounts);
