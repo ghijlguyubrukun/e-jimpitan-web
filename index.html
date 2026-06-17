@@ -231,9 +231,13 @@
           <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
               <div className="text-center mb-8">
-                <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${theme?.light || 'bg-blue-50'}`}>
-                  <ShieldCheck size={40} className={theme?.text || 'text-blue-600'} />
-                </div>
+                {settings?.logoUrl ? (
+                  <img src={settings.logoUrl} alt="Logo" className="h-20 w-auto mx-auto mb-4 object-contain drop-shadow-md" />
+                ) : (
+                  <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${theme?.light || 'bg-blue-50'}`}>
+                    <ShieldCheck size={40} className={theme?.text || 'text-blue-600'} />
+                  </div>
+                )}
                 <h1 className="text-2xl font-black">{settings?.webName || 'e-Jimpitan'}</h1>
                 <p className="text-sm text-gray-500 mt-1">{settings?.tagline || 'Sistem Keuangan Warga'}</p>
               </div>
@@ -1920,11 +1924,9 @@
             else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
             canvas.width = width; canvas.height = height;
             const ctxCanvas = canvas.getContext('2d');
-            ctxCanvas.fillStyle = "white";
-            ctxCanvas.fillRect(0, 0, canvas.width, canvas.height);
             ctxCanvas.drawImage(img, 0, 0, width, height);
             
-            setSettings(prev => ({...prev, logoUrl: canvas.toDataURL('image/jpeg', 0.8)}));
+            setSettings(prev => ({...prev, logoUrl: canvas.toDataURL('image/png')}));
           }
           img.src = event.target.result;
         }
