@@ -6,6 +6,7 @@
   - Fitur: Export Excel Rekap Laporan Keuangan
   - Fix Layout Print: Multi-page Print untuk PDF & Barcode
   - Fitur Baru: Filter Periode khusus Admin, Koordinator otomatis periode aktif
+  - Fix: Dropdown "Pilih Regu Bertugas" pada input absen harian disaring berdasarkan periode aktif untuk semua role
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -661,8 +662,13 @@
         if (!dayName) return [];
 
         let filtered = jadwal.filter(j => j.hari.toLowerCase() === dayName.toLowerCase());
+        
+        if (activePeriod && activePeriod !== 'Semua') {
+          filtered = filtered.filter(j => j.periode === activePeriod);
+        }
+
         if (!isAdmin) {
-          filtered = filtered.filter(j => j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod));
+          filtered = filtered.filter(j => j.koordinatorId === currentUser?.wargaId);
         }
         return filtered;
       }, [inputDate, jadwal, isAdmin, currentUser, activePeriod]);
@@ -1119,8 +1125,13 @@
         if (!selectedDayName) return [];
 
         let filtered = jadwal.filter(j => j.hari.toLowerCase() === selectedDayName.toLowerCase());
+        
+        if (activePeriod && activePeriod !== 'Semua') {
+          filtered = filtered.filter(j => j.periode === activePeriod);
+        }
+
         if (!isAdmin) {
-          filtered = filtered.filter(j => j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod));
+          filtered = filtered.filter(j => j.koordinatorId === currentUser?.wargaId);
         }
         return filtered;
       }, [inputDate, jadwal, isAdmin, currentUser, activePeriod]);
