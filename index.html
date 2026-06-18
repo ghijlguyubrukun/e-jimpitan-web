@@ -5,8 +5,10 @@
   - Fitur: Edit ID Barcode & Auto-Sort ID Barcode Data Warga
   - Fitur: Export Excel Rekap Laporan Keuangan
   - Fix Layout Print: Multi-page Print untuk PDF & Barcode
-  - Fitur: Filter Periode khusus Admin, Koordinator otomatis periode aktif
-  - Fitur Baru: Rekap Denda (Checklist pelunasan denda per bulan per warga)
+  - Fitur Baru: Filter Periode khusus Admin, Koordinator otomatis periode aktif
+  - Fix: Dropdown "Pilih Regu Bertugas" pada input absen harian disaring berdasarkan periode aktif untuk semua role
+  - Fix: Dashboard (Portal Warga) "Jadwal Ronda Aktif" dan "Daftar Regu" hanya menampilkan data dari periode aktif
+  - Fitur Baru: Auto Background Remover (menghilangkan background putih pada logo yang diupload)
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -185,7 +187,6 @@
     const Edit = (p) => <LucideIcon name="edit" {...p} />;
     const List = (p) => <LucideIcon name="list" {...p} />;
     const ImageIcon = (p) => <LucideIcon name="image" {...p} />;
-    const Wallet = (p) => <LucideIcon name="wallet" {...p} />;
 
     const initialWarga = [
       { id: 'H-01', nama: 'Budi Santoso', alamat: 'Blok H No 1', hp: '08123456789' },
@@ -287,9 +288,7 @@
         : absensi.filter(a => myJadwalIds.includes(a.jadwalId));
       
       const totalJimpitan = jimpitan.reduce((sum, item) => sum + Number(item.nominal), 0);
-      
-      // HANYA DENDA YANG BELUM LUNAS YANG DIHITUNG SEBAGAI TUNGGAKAN
-      const totalDenda = absensi.filter(a => a.status === 'Alpa' && !a.isLunas).length * (settings.nominalDenda || 0);
+      const totalDenda = absensi.filter(a => a.status === 'Alpa').length * (settings.nominalDenda || 0);
 
       const availableYears = useMemo(() => {
         const years = [...new Set(jimpitan.map(j => j.tahun))].filter(Boolean).sort().reverse();
@@ -333,13 +332,13 @@
         return ctx.warga.map(w => {
           const txJimpitan = jimpitan.filter(t => t.wargaId === w.id);
           const txAbsen = absensi.filter(t => t.wargaId === w.id);
-          const alpaBelumLunas = txAbsen.filter(t => t.status === 'Alpa' && !t.isLunas).length;
+          const alpaCount = txAbsen.filter(t => t.status === 'Alpa').length;
           return {
             ...w,
             totalJimpitan: txJimpitan.reduce((sum, t) => sum + (Number(t.nominal) || 0), 0),
             hadir: txAbsen.filter(t => t.status === 'Hadir').length,
-            alpa: txAbsen.filter(t => t.status === 'Alpa').length,
-            denda: alpaBelumLunas * (settings.nominalDenda || 0),
+            alpa: alpaCount,
+            denda: alpaCount * (settings.nominalDenda || 0),
           };
         });
       }, [ctx.warga, jimpitan, absensi, settings.nominalDenda]);
@@ -356,7 +355,7 @@
             </div>
             <div className={`${ui.card} p-6 rounded-xl flex items-center justify-between`}>
               <div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Tunggakan Denda</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Denda Terkumpul</p>
                 <h3 className="text-3xl font-bold text-red-500">Rp {totalDenda.toLocaleString('id-ID')}</h3>
               </div>
               <AlertCircle size={40} className="text-red-500 opacity-80" />
@@ -1376,7 +1375,7 @@
       const periodeOptions = useMemo(() => ['Semua', ...new Set(jadwal.map(j => j.periode).filter(Boolean))], [jadwal]);
       const hariOptions = ['Semua', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
       const bulanOptions = ['Semua', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-      const tahunOptions = ['Semua', '2024', '2025', '2026', '2027'];
+      const tahunOptions = ['Semua', '2025', '2026', '2027'];
 
       const [editModal, setEditModal] = useState(null); 
       const [editFormData, setEditFormData] = useState([]); 
@@ -1434,13 +1433,12 @@
             const txJimpitan = filteredJimpitan.filter(t => t.wargaId === w.id);
             const txAbsen = filteredAbsensi.filter(t => t.wargaId === w.id);
             const alpaCount = txAbsen.filter(t => t.status === 'Alpa').length;
-            const alpaBelumLunas = txAbsen.filter(t => t.status === 'Alpa' && !t.isLunas).length;
             return {
               ...w,
               totalJimpitan: txJimpitan.reduce((sum, t) => sum + (Number(t.nominal) || 0), 0),
               hadir: txAbsen.filter(t => t.status === 'Hadir').length,
               alpa: alpaCount,
-              denda: alpaBelumLunas * (settings.nominalDenda || 0),
+              denda: alpaCount * (settings.nominalDenda || 0),
             };
           });
       }, [warga, filteredJimpitan, filteredAbsensi, settings.nominalDenda, filterHari, appliedFilterPeriode, jadwal]);
@@ -1471,7 +1469,7 @@
                 const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
                 harianMap[key] = { tanggal: a.tanggal, hariInput: days[d.getDay()], jadwalId: a.jadwalId, total: 0, anggotaAlpa: [] };
               }
-              harianMap[key].anggotaAlpa.push({ nama: getWargaName(a.wargaId), status: a.status, isLunas: a.isLunas });
+              harianMap[key].anggotaAlpa.push({ nama: getWargaName(a.wargaId), status: a.status });
            }
         });
         
@@ -1533,8 +1531,7 @@
              nominal: existingJimpitan ? existingJimpitan.nominal : '',
              isMember: isMember,
              status: isMember ? (existingAbsen ? existingAbsen.status : 'Hadir') : null,
-             keterangan: existingAbsen ? existingAbsen.keterangan : '',
-             isLunas: existingAbsen ? existingAbsen.isLunas : false
+             keterangan: existingAbsen ? existingAbsen.keterangan : ''
            };
         });
         setEditFormData(formData);
@@ -1569,7 +1566,7 @@
              editedAbsensi.push({
                 id: Date.now() + Math.random(),
                 tanggal, bulan: monthStr, tahun: yearStr,
-                jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
+                jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan
              });
            }
         });
@@ -1663,7 +1660,7 @@
                       <th className="p-4 print:border-black print:border">Nama Warga</th>
                       <th className="p-4 text-center print:border-black print:border">Hadir</th>
                       <th className="p-4 text-center text-red-500 font-bold print:text-black print:border-black print:border">Alpa</th>
-                      <th className="p-4 text-right text-red-600 font-bold print:text-black print:border-black print:border">Tunggakan Denda</th>
+                      <th className="p-4 text-right text-red-600 font-bold print:text-black print:border-black print:border">Denda</th>
                       <th className="p-4 text-right text-emerald-600 font-bold print:text-black print:border-black print:border">Total Jimpitan</th>
                     </tr>
                   </thead>
@@ -1727,7 +1724,7 @@
                                 {r.anggotaAlpa.map((a, idx) => (
                                   <li key={idx} className="flex flex-col sm:flex-row sm:items-center gap-1">
                                     <div><span className={a.status === 'Alpa' ? 'text-red-500 font-bold' : 'text-orange-500'}>[{a.status}]</span> {a.nama}</div>
-                                    {a.status === 'Alpa' && <span className={`text-[10px] px-1.5 py-0.5 rounded ml-1 ${a.isLunas ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>{a.isLunas ? 'Denda Lunas' : `Denda: Rp ${(settings.nominalDenda || 0).toLocaleString('id-ID')}`}</span>}
+                                    {a.status === 'Alpa' && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded ml-1">Denda: Rp {(settings.nominalDenda || 0).toLocaleString('id-ID')}</span>}
                                   </li>
                                 ))}
                               </ul>
@@ -1866,121 +1863,6 @@
             </div>
           )}
 
-        </div>
-      );
-    };
-
-    const RekapDenda = ({ ctx }) => {
-      const { absensi, setAbsensi, warga, settings, syncData, showToast, theme, ui, isAdmin, currentUser, jadwal } = ctx;
-      
-      const bulanOptions = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-      const tahunOptions = ['2024', '2025', '2026', '2027'];
-      
-      const currentMonth = bulanOptions[new Date().getMonth()];
-      const [filterBulan, setFilterBulan] = useState(currentMonth);
-      const [filterTahun, setFilterTahun] = useState(new Date().getFullYear().toString());
-
-      const activePeriod = useMemo(() => {
-        if (settings.activePeriode) return settings.activePeriode;
-        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
-        return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
-      }, [jadwal, settings.activePeriode]);
-
-      const allowedWargaIds = useMemo(() => {
-        if (isAdmin) return warga.map(w => w.id);
-        const myJadwal = jadwal.filter(j => j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod));
-        const ids = new Set();
-        myJadwal.forEach(j => { ids.add(j.koordinatorId); j.anggotaIds.forEach(id => ids.add(id)); });
-        return Array.from(ids);
-      }, [isAdmin, warga, jadwal, currentUser, activePeriod]);
-
-      const alpaRecords = useMemo(() => {
-        return absensi.filter(a => a.status === 'Alpa' && a.bulan === filterBulan && a.tahun === filterTahun);
-      }, [absensi, filterBulan, filterTahun]);
-
-      const groupedAlpa = useMemo(() => {
-        const groups = {};
-        alpaRecords.forEach(a => {
-           if (!allowedWargaIds.includes(a.wargaId)) return;
-           if (!groups[a.wargaId]) groups[a.wargaId] = [];
-           groups[a.wargaId].push(a);
-        });
-        return Object.keys(groups).map(wId => ({
-           wargaId: wId,
-           nama: warga.find(w => w.id === wId)?.nama || wId,
-           records: groups[wId].sort((a,b) => new Date(a.tanggal) - new Date(b.tanggal))
-        })).sort((a,b) => a.nama.localeCompare(b.nama));
-      }, [alpaRecords, allowedWargaIds, warga]);
-
-      const handleToggleLunas = (id, currentStatus) => {
-         const newAbsensi = absensi.map(a => a.id === id ? { ...a, isLunas: !currentStatus } : a);
-         setAbsensi(newAbsensi);
-         syncData("absensi", newAbsensi);
-         showToast(currentStatus ? 'Status denda diubah menjadi Belum Lunas' : 'Denda berhasil ditandai Lunas!');
-      }
-
-      return (
-        <div className="space-y-6 animate-fade-in print-content">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 print-hide">
-            <div>
-              <h2 className="text-2xl font-bold">Rekap Denda (Alpa) Ronda</h2>
-              <p className="text-sm opacity-70 mt-1">Checklist tanggal untuk menandai denda sudah dibayar.</p>
-            </div>
-            <div className="flex flex-wrap gap-2 w-full md:w-auto">
-              <select className={`p-2 rounded border ${ui.input} text-sm flex-1 min-w-[120px]`} value={filterBulan} onChange={e => setFilterBulan(e.target.value)}>
-                {bulanOptions.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <select className={`p-2 rounded border ${ui.input} text-sm flex-1 min-w-[100px]`} value={filterTahun} onChange={e => setFilterTahun(e.target.value)}>
-                {tahunOptions.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className={`${ui.card} rounded-xl overflow-hidden print:shadow-none print:border-black`}>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse print:text-black print:border-black print:border">
-                <thead>
-                  <tr className={`${ui.tableHead} border-b text-sm print:bg-gray-100`}>
-                    <th className="p-4 print:border-black print:border">Nama Warga</th>
-                    <th className="p-4 text-center print:border-black print:border">Total Alpa</th>
-                    <th className="p-4 print:border-black print:border">Rincian Tanggal & Pembayaran</th>
-                    <th className="p-4 text-right text-red-600 font-bold print:text-black print:border-black print:border">Sisa Tagihan</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedAlpa.length === 0 && (
-                    <tr><td colSpan="4" className="p-4 text-center text-gray-500 italic">Tidak ada catatan warga yang Alpa pada bulan ini.</td></tr>
-                  )}
-                  {groupedAlpa.map(g => {
-                    const unpaidCount = g.records.filter(r => !r.isLunas).length;
-                    return (
-                      <tr key={g.wargaId} className={`border-b ${ui.tableRow} print:border-black`}>
-                        <td className="p-4 font-bold flex items-center gap-2 print:border-black print:border"><UserCircle size={16} className="print-hide"/> {g.nama}</td>
-                        <td className="p-4 text-center font-bold print:border-black print:border">{g.records.length}x</td>
-                        <td className="p-4 print:border-black print:border">
-                          <div className="flex flex-col gap-2">
-                            {g.records.map(r => (
-                              <label key={r.id} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
-                                <input type="checkbox" checked={!!r.isLunas} onChange={() => handleToggleLunas(r.id, r.isLunas)} className="w-4 h-4 text-emerald-600" />
-                                <span className={`text-sm ${r.isLunas ? 'line-through text-gray-400' : 'font-semibold'}`}>
-                                  {r.tanggal}
-                                </span>
-                                {r.isLunas && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded ml-auto">Lunas</span>}
-                                {!r.isLunas && <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded ml-auto">Belum Lunas</span>}
-                              </label>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="p-4 text-right font-bold text-red-600 print:text-black print:border-black print:border">
-                          {unpaidCount > 0 ? `Rp ${(unpaidCount * (settings.nominalDenda || 0)).toLocaleString('id-ID')}` : <span className="text-emerald-600">Lunas Semua</span>}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
       );
     };
@@ -2404,7 +2286,6 @@
         { id: 'jadwal_absen', label: 'Jadwal & Absen', icon: CalendarDays, roles: ['Admin Jimpitan', 'Koordinator'] },
         { id: 'scan_keliling', label: 'Scan Jimpitan', icon: Camera, roles: ['Admin Jimpitan', 'Koordinator'] },
         { id: 'rekap', label: 'Rekap Laporan', icon: ClipboardList, roles: ['Admin Jimpitan', 'Koordinator'] },
-        { id: 'rekap_denda', label: 'Rekap Denda', icon: Wallet, roles: ['Admin Jimpitan', 'Koordinator'] },
         { id: 'barcode', label: 'Barcode Rumah', icon: QrCode, roles: ['Admin Jimpitan'] },
         { id: 'pengaturan', label: 'Pengaturan', icon: Settings, roles: ['Admin Jimpitan', 'Koordinator'] },
       ];
@@ -2549,7 +2430,6 @@
               {activeTab === 'jadwal_absen' && <JadwalDanAbsen ctx={ctx} />}
               {activeTab === 'scan_keliling' && <ScanJimpitan ctx={ctx} />} 
               {activeTab === 'rekap' && <RekapLaporan ctx={ctx} />} 
-              {activeTab === 'rekap_denda' && <RekapDenda ctx={ctx} />} 
               {activeTab === 'barcode' && <BarcodeGenerator ctx={ctx} />}
               {activeTab === 'pengaturan' && <Pengaturan ctx={ctx} />}
             </div>
