@@ -5,10 +5,13 @@
   - Fitur: Edit ID Barcode & Auto-Sort ID Barcode Data Warga
   - Fitur: Export Excel Rekap Laporan Keuangan
   - Fix Layout Print: Multi-page Print untuk PDF & Barcode
-  - Fitur Baru: Filter Periode khusus Admin, Koordinator otomatis periode aktif
-  - Fix: Dropdown "Pilih Regu Bertugas" pada input absen harian disaring berdasarkan periode aktif untuk semua role
-  - Fix: Dashboard (Portal Warga) "Jadwal Ronda Aktif" dan "Daftar Regu" hanya menampilkan data dari periode aktif
-  - Fitur Baru: Auto Background Remover (menghilangkan background putih pada logo yang diupload)
+  - Fitur: Filter Periode khusus Admin, Koordinator otomatis periode aktif
+  - Fitur: Rekap Denda (Checklist pelunasan denda per bulan per warga)
+  - Fitur: Auto Background Remover (menghilangkan background putih pada logo)
+  - Fix: Pre-loader HTML ditambahkan & Timeout API dipercepat untuk mencegah Blank Screen
+  - Fix: Koordinator hanya bisa edit absen di hari H, terkunci di hari berikutnya.
+  - Fix: Grafik Pemasukan sangat responsif di HP (Auto-Scroll & Teks Dinamis)
+  - Fix: Menu otomatis menutup dengan sempurna setelah diklik di versi Mobile.
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -38,7 +41,7 @@
     window.ambilDataDariSpreadsheet = async function() {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 detik timeout
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // Dipercepat menjadi 10 detik agar tidak blank
 
         const response = await fetch(scriptURL, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -86,14 +89,14 @@
         try {
           const hasil = JSON.parse(text);
           if (hasil.status === 'success') return true;
-          alert("GAGAL MENYIMPAN KE DATABASE:\n" + hasil.message);
+          console.error("GAGAL MENYIMPAN KE DATABASE:\n" + hasil.message);
           return false;
         } catch(e) {
-          alert("GAGAL MENYIMPAN: Sistem gagal merespons.");
+          console.error("GAGAL MENYIMPAN: Sistem gagal merespons.");
           return false;
         }
       } catch (error) {
-        alert('Terjadi error jaringan. Cek koneksi internet Anda.');
+        console.error('Terjadi error jaringan. Cek koneksi internet Anda.');
         return false;
       }
     };
@@ -126,10 +129,23 @@
     }
     .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    
+    /* Utility class for hiding scrollbar visually but allowing scroll */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
 <body class="bg-gray-50">
-  <div id="root"></div>
+  <div id="root">
+    <!-- Tampilan loading manual HTML sebelum React di-render (mencegah blank screen) -->
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: #4B5563;">
+      <svg class="animate-spin" style="width: 48px; height: 48px; color: #3B82F6; margin-bottom: 16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p style="font-weight: bold; font-size: 1.125rem;">Memuat Modul Aplikasi...</p>
+    </div>
+  </div>
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef } = React;
@@ -187,6 +203,7 @@
     const Edit = (p) => <LucideIcon name="edit" {...p} />;
     const List = (p) => <LucideIcon name="list" {...p} />;
     const ImageIcon = (p) => <LucideIcon name="image" {...p} />;
+    const Wallet = (p) => <LucideIcon name="wallet" {...p} />;
 
     const initialWarga = [
       { id: 'H-01', nama: 'Budi Santoso', alamat: 'Blok H No 1', hp: '08123456789' },
@@ -233,7 +250,7 @@
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
               <div className="text-center mb-8">
                 {settings?.logoUrl ? (
-                  <img src={settings.logoUrl} alt="Logo" className="h-24 w-auto mx-auto mb-4 object-contain drop-shadow-md" />
+                  <img src={settings.logoUrl} alt="Logo" className="h-20 w-auto mx-auto mb-4 object-contain drop-shadow-md" />
                 ) : (
                   <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${theme?.light || 'bg-blue-50'}`}>
                     <ShieldCheck size={40} className={theme?.text || 'text-blue-600'} />
@@ -287,8 +304,10 @@
         ? absensi 
         : absensi.filter(a => myJadwalIds.includes(a.jadwalId));
       
-      const totalJimpitan = jimpitan.reduce((sum, item) => sum + Number(item.nominal), 0);
-      const totalDenda = absensi.filter(a => a.status === 'Alpa').length * (settings.nominalDenda || 0);
+      const totalJimpitan = jimpitan.reduce((sum, item) => sum + (Number(item.nominal) || 0), 0);
+      
+      // HANYA DENDA YANG BELUM LUNAS YANG DIHITUNG SEBAGAI TUNGGAKAN
+      const totalDenda = absensi.filter(a => a.status === 'Alpa' && !a.isLunas).length * (settings.nominalDenda || 0);
 
       const availableYears = useMemo(() => {
         const years = [...new Set(jimpitan.map(j => j.tahun))].filter(Boolean).sort().reverse();
@@ -305,7 +324,7 @@
         
         jimpitan.forEach(curr => {
           if (curr.tahun === chartYear && dataMap[curr.bulan] !== undefined) {
-            dataMap[curr.bulan] += Number(curr.nominal) || 0;
+            dataMap[curr.bulan] += (Number(curr.nominal) || 0);
           }
         });
         
@@ -332,13 +351,13 @@
         return ctx.warga.map(w => {
           const txJimpitan = jimpitan.filter(t => t.wargaId === w.id);
           const txAbsen = absensi.filter(t => t.wargaId === w.id);
-          const alpaCount = txAbsen.filter(t => t.status === 'Alpa').length;
+          const alpaBelumLunas = txAbsen.filter(t => t.status === 'Alpa' && !t.isLunas).length;
           return {
             ...w,
             totalJimpitan: txJimpitan.reduce((sum, t) => sum + (Number(t.nominal) || 0), 0),
             hadir: txAbsen.filter(t => t.status === 'Hadir').length,
-            alpa: alpaCount,
-            denda: alpaCount * (settings.nominalDenda || 0),
+            alpa: txAbsen.filter(t => t.status === 'Alpa').length,
+            denda: alpaBelumLunas * (settings.nominalDenda || 0),
           };
         });
       }, [ctx.warga, jimpitan, absensi, settings.nominalDenda]);
@@ -355,7 +374,7 @@
             </div>
             <div className={`${ui.card} p-6 rounded-xl flex items-center justify-between`}>
               <div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Denda Terkumpul</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Tunggakan Denda</p>
                 <h3 className="text-3xl font-bold text-red-500">Rp {totalDenda.toLocaleString('id-ID')}</h3>
               </div>
               <AlertCircle size={40} className="text-red-500 opacity-80" />
@@ -370,8 +389,8 @@
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print-hide">
-            <div className={`${ui.card} p-6 rounded-xl flex flex-col justify-between`}>
-              <div className="flex justify-between items-start mb-2">
+            <div className={`${ui.card} p-4 sm:p-6 rounded-xl flex flex-col justify-between overflow-hidden`}>
+              <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-lg font-semibold">Grafik Pemasukan Jimpitan</h3>
                   <p className="text-xs text-gray-400">Statistik kas bulanan per tahun</p>
@@ -381,25 +400,29 @@
                 </select>
               </div>
               
-              <div className="flex-1 flex items-end justify-between h-48 space-x-1 sm:space-x-2 border-b border-gray-200 dark:border-gray-700 pb-2 mt-4">
-                {jimpitanChartData.every(d => d.total === 0) ? (
-                  <div className="w-full flex items-center justify-center text-sm text-gray-400 italic">Belum ada data jimpitan di tahun {chartYear}.</div>
-                ) : (
-                  jimpitanChartData.map((data, idx) => {
-                    const heightPercent = Math.max((data.total / (maxJimpitan || 1)) * 100, 2);
-                    return (
-                      <div key={idx} className="flex flex-col items-center flex-1 group h-full justify-end relative">
-                        <div className="absolute -top-8 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10 shadow-lg">
-                          Rp {data.total.toLocaleString('id-ID')}
+              {/* Added horizontal scroll specifically for mobile to prevent overlapping bars */}
+              <div className="w-full overflow-x-auto no-scrollbar pb-6 pt-2">
+                <div className="flex items-end justify-between h-48 min-w-[340px] space-x-1 sm:space-x-2 border-b border-gray-200 dark:border-gray-700 pb-2 mt-2">
+                  {jimpitanChartData.every(d => d.total === 0) ? (
+                    <div className="w-full flex items-center justify-center text-sm text-gray-400 italic">Belum ada data jimpitan di tahun {chartYear}.</div>
+                  ) : (
+                    jimpitanChartData.map((data, idx) => {
+                      const heightPercent = Math.max((data.total / (maxJimpitan || 1)) * 100, 2);
+                      return (
+                        <div key={idx} className="flex flex-col items-center flex-1 group h-full justify-end relative">
+                          <div className="absolute -top-8 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10 shadow-lg">
+                            Rp {data.total.toLocaleString('id-ID')}
+                          </div>
+                          <div className="w-full max-w-[28px] sm:max-w-[40px] rounded-t-sm transition-all duration-300" style={{ height: `${heightPercent}%`, backgroundColor: theme.bar, opacity: data.total === 0 ? 0.2 : 1 }}></div>
+                          <div className="text-[9px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2 font-semibold absolute -bottom-5">
+                            {data.label.substring(0, 3)}
+                          </div>
                         </div>
-                        <div className="w-full max-w-[40px] rounded-t-sm transition-all duration-300" style={{ height: `${heightPercent}%`, backgroundColor: theme.bar, opacity: data.total === 0 ? 0.2 : 1 }}></div>
-                        <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2 font-semibold absolute -bottom-5">{data.label}</div>
-                      </div>
-                    )
-                  })
-                )}
+                      )
+                    })
+                  )}
+                </div>
               </div>
-              <div className="h-5"></div> 
             </div>
             
             <div className={`${ui.card} p-6 rounded-xl flex flex-col`}>
@@ -530,13 +553,13 @@
         let updatedWarga;
         if (isEditing) {
           if (idCustom !== newWarga.oldId && warga.some(w => w.id === idCustom)) {
-            alert(`PERINGATAN: ID Barcode "${idCustom}" sudah dipakai oleh warga lain!\nSilakan masukkan ID atau Nomor Blok yang berbeda.`);
+            showToast(`PERINGATAN: ID Barcode "${idCustom}" sudah dipakai oleh warga lain!`);
             return;
           }
           updatedWarga = warga.map(w => w.id === newWarga.oldId ? { ...w, id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp } : w);
         } else {
           if(warga.some(w => w.id === idCustom)) {
-            alert(`PERINGATAN: ID Barcode "${idCustom}" sudah dipakai oleh warga lain!\nSilakan masukkan ID atau Nomor Blok yang berbeda.`);
+            showToast(`PERINGATAN: ID Barcode "${idCustom}" sudah dipakai oleh warga lain!`);
             return;
           }
           updatedWarga = [...warga, { id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp }];
@@ -667,7 +690,7 @@
       }, [jadwal, settings.activePeriode]);
 
       const availableJadwalForDate = useMemo(() => {
-        if (!inputDate) return []; // SAFETY NET: Hindari Error Tanggal Kosong
+        if (!inputDate) return []; 
         const dateParts = inputDate.split('-'); 
         if (dateParts.length !== 3) return [];
         
@@ -1375,7 +1398,7 @@
       const periodeOptions = useMemo(() => ['Semua', ...new Set(jadwal.map(j => j.periode).filter(Boolean))], [jadwal]);
       const hariOptions = ['Semua', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
       const bulanOptions = ['Semua', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-      const tahunOptions = ['Semua', '2025', '2026', '2027'];
+      const tahunOptions = ['Semua', '2024', '2025', '2026', '2027'];
 
       const [editModal, setEditModal] = useState(null); 
       const [editFormData, setEditFormData] = useState([]); 
@@ -1433,12 +1456,13 @@
             const txJimpitan = filteredJimpitan.filter(t => t.wargaId === w.id);
             const txAbsen = filteredAbsensi.filter(t => t.wargaId === w.id);
             const alpaCount = txAbsen.filter(t => t.status === 'Alpa').length;
+            const alpaBelumLunas = txAbsen.filter(t => t.status === 'Alpa' && !t.isLunas).length;
             return {
               ...w,
               totalJimpitan: txJimpitan.reduce((sum, t) => sum + (Number(t.nominal) || 0), 0),
               hadir: txAbsen.filter(t => t.status === 'Hadir').length,
               alpa: alpaCount,
-              denda: alpaCount * (settings.nominalDenda || 0),
+              denda: alpaBelumLunas * (settings.nominalDenda || 0),
             };
           });
       }, [warga, filteredJimpitan, filteredAbsensi, settings.nominalDenda, filterHari, appliedFilterPeriode, jadwal]);
@@ -1469,7 +1493,7 @@
                 const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
                 harianMap[key] = { tanggal: a.tanggal, hariInput: days[d.getDay()], jadwalId: a.jadwalId, total: 0, anggotaAlpa: [] };
               }
-              harianMap[key].anggotaAlpa.push({ nama: getWargaName(a.wargaId), status: a.status });
+              harianMap[key].anggotaAlpa.push({ nama: getWargaName(a.wargaId), status: a.status, isLunas: a.isLunas });
            }
         });
         
@@ -1531,7 +1555,8 @@
              nominal: existingJimpitan ? existingJimpitan.nominal : '',
              isMember: isMember,
              status: isMember ? (existingAbsen ? existingAbsen.status : 'Hadir') : null,
-             keterangan: existingAbsen ? existingAbsen.keterangan : ''
+             keterangan: existingAbsen ? existingAbsen.keterangan : '',
+             isLunas: existingAbsen ? existingAbsen.isLunas : false
            };
         });
         setEditFormData(formData);
@@ -1566,7 +1591,7 @@
              editedAbsensi.push({
                 id: Date.now() + Math.random(),
                 tanggal, bulan: monthStr, tahun: yearStr,
-                jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan
+                jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
              });
            }
         });
@@ -1592,18 +1617,16 @@
       };
 
       const handleHapusLaporan = () => {
-        if(window.confirm("Yakin ingin menghapus seluruh laporan (Absen & Jimpitan) pada tanggal dan regu ini?")) {
-            const newJimpitan = jimpitan.filter(j => !(j.tanggal === editModal.tanggal && j.jadwalId === editModal.jadwalId));
-            const newAbsensi = absensi.filter(a => !(a.tanggal === editModal.tanggal && a.jadwalId === editModal.jadwalId));
-            
-            setJimpitan(newJimpitan);
-            setAbsensi(newAbsensi);
-            syncData("jimpitan", newJimpitan);
-            syncData("absensi", newAbsensi);
-            
-            setEditModal(null);
-            showToast("Laporan berhasil dihapus secara total.");
-        }
+         const newJimpitan = jimpitan.filter(j => !(j.tanggal === editModal.tanggal && j.jadwalId === editModal.jadwalId));
+         const newAbsensi = absensi.filter(a => !(a.tanggal === editModal.tanggal && a.jadwalId === editModal.jadwalId));
+         
+         setJimpitan(newJimpitan);
+         setAbsensi(newAbsensi);
+         syncData("jimpitan", newJimpitan);
+         syncData("absensi", newAbsensi);
+         
+         setEditModal(null);
+         showToast("Laporan berhasil dihapus secara total.");
       };
 
       return (
@@ -1707,7 +1730,9 @@
                       
                       const isMyRegu = currentUser?.role === 'Koordinator' && jadwal.filter(j => j.koordinatorId === currentUser.wargaId).map(j=>j.id).includes(r.jadwalId);
                       if (!isAdmin && !isMyRegu && currentUser?.role === 'Koordinator') return null;
-                      const canEdit = isAdmin || isMyRegu;
+                      
+                      const todayStr = getLocalToday();
+                      const canEdit = isAdmin || (isMyRegu && r.tanggal === todayStr);
 
                       return (
                         <tr key={i} className={`border-b ${ui.tableRow} print:border-black`}>
@@ -1724,7 +1749,7 @@
                                 {r.anggotaAlpa.map((a, idx) => (
                                   <li key={idx} className="flex flex-col sm:flex-row sm:items-center gap-1">
                                     <div><span className={a.status === 'Alpa' ? 'text-red-500 font-bold' : 'text-orange-500'}>[{a.status}]</span> {a.nama}</div>
-                                    {a.status === 'Alpa' && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded ml-1">Denda: Rp {(settings.nominalDenda || 0).toLocaleString('id-ID')}</span>}
+                                    {a.status === 'Alpa' && <span className={`text-[10px] px-1.5 py-0.5 rounded ml-1 ${a.isLunas ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>{a.isLunas ? 'Denda Lunas' : `Denda: Rp ${(settings.nominalDenda || 0).toLocaleString('id-ID')}`}</span>}
                                   </li>
                                 ))}
                               </ul>
@@ -1740,6 +1765,8 @@
                               <button onClick={() => handleOpenEditModal(r.tanggal, r.jadwalId)} className={`${theme.light} ${theme.text} hover:opacity-80 p-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 mx-auto`}>
                                 <Edit size={14} /> Edit
                               </button>
+                            ) : isMyRegu ? (
+                              <span className="text-[10px] text-gray-500 font-semibold bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">Dikunci</span>
                             ) : (
                               <span className="text-xs text-gray-400">-</span>
                             )}
@@ -1867,6 +1894,121 @@
       );
     };
 
+    const RekapDenda = ({ ctx }) => {
+      const { absensi, setAbsensi, warga, settings, syncData, showToast, theme, ui, isAdmin, currentUser, jadwal } = ctx;
+      
+      const bulanOptions = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const tahunOptions = ['2024', '2025', '2026', '2027'];
+      
+      const currentMonth = bulanOptions[new Date().getMonth()];
+      const [filterBulan, setFilterBulan] = useState(currentMonth);
+      const [filterTahun, setFilterTahun] = useState(new Date().getFullYear().toString());
+
+      const activePeriod = useMemo(() => {
+        if (settings.activePeriode) return settings.activePeriode;
+        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
+        return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
+      }, [jadwal, settings.activePeriode]);
+
+      const allowedWargaIds = useMemo(() => {
+        if (isAdmin) return warga.map(w => w.id);
+        const myJadwal = jadwal.filter(j => j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod));
+        const ids = new Set();
+        myJadwal.forEach(j => { ids.add(j.koordinatorId); j.anggotaIds.forEach(id => ids.add(id)); });
+        return Array.from(ids);
+      }, [isAdmin, warga, jadwal, currentUser, activePeriod]);
+
+      const alpaRecords = useMemo(() => {
+        return absensi.filter(a => a.status === 'Alpa' && a.bulan === filterBulan && a.tahun === filterTahun);
+      }, [absensi, filterBulan, filterTahun]);
+
+      const groupedAlpa = useMemo(() => {
+        const groups = {};
+        alpaRecords.forEach(a => {
+           if (!allowedWargaIds.includes(a.wargaId)) return;
+           if (!groups[a.wargaId]) groups[a.wargaId] = [];
+           groups[a.wargaId].push(a);
+        });
+        return Object.keys(groups).map(wId => ({
+           wargaId: wId,
+           nama: warga.find(w => w.id === wId)?.nama || wId,
+           records: groups[wId].sort((a,b) => new Date(a.tanggal) - new Date(b.tanggal))
+        })).sort((a,b) => a.nama.localeCompare(b.nama));
+      }, [alpaRecords, allowedWargaIds, warga]);
+
+      const handleToggleLunas = (id, currentStatus) => {
+         const newAbsensi = absensi.map(a => a.id === id ? { ...a, isLunas: !currentStatus } : a);
+         setAbsensi(newAbsensi);
+         syncData("absensi", newAbsensi);
+         showToast(currentStatus ? 'Status denda diubah menjadi Belum Lunas' : 'Denda berhasil ditandai Lunas!');
+      }
+
+      return (
+        <div className="space-y-6 animate-fade-in print-content">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 print-hide">
+            <div>
+              <h2 className="text-2xl font-bold">Rekap Denda (Alpa) Ronda</h2>
+              <p className="text-sm opacity-70 mt-1">Checklist tanggal untuk menandai denda sudah dibayar.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              <select className={`p-2 rounded border ${ui.input} text-sm flex-1 min-w-[120px]`} value={filterBulan} onChange={e => setFilterBulan(e.target.value)}>
+                {bulanOptions.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <select className={`p-2 rounded border ${ui.input} text-sm flex-1 min-w-[100px]`} value={filterTahun} onChange={e => setFilterTahun(e.target.value)}>
+                {tahunOptions.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className={`${ui.card} rounded-xl overflow-hidden print:shadow-none print:border-black`}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse print:text-black print:border-black print:border">
+                <thead>
+                  <tr className={`${ui.tableHead} border-b text-sm print:bg-gray-100`}>
+                    <th className="p-4 print:border-black print:border">Nama Warga</th>
+                    <th className="p-4 text-center print:border-black print:border">Total Alpa</th>
+                    <th className="p-4 print:border-black print:border">Rincian Tanggal & Pembayaran</th>
+                    <th className="p-4 text-right text-red-600 font-bold print:text-black print:border-black print:border">Sisa Tagihan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedAlpa.length === 0 && (
+                    <tr><td colSpan="4" className="p-4 text-center text-gray-500 italic">Tidak ada catatan warga yang Alpa pada bulan ini.</td></tr>
+                  )}
+                  {groupedAlpa.map(g => {
+                    const unpaidCount = g.records.filter(r => !r.isLunas).length;
+                    return (
+                      <tr key={g.wargaId} className={`border-b ${ui.tableRow} print:border-black`}>
+                        <td className="p-4 font-bold flex items-center gap-2 print:border-black print:border"><UserCircle size={16} className="print-hide"/> {g.nama}</td>
+                        <td className="p-4 text-center font-bold print:border-black print:border">{g.records.length}x</td>
+                        <td className="p-4 print:border-black print:border">
+                          <div className="flex flex-col gap-2">
+                            {g.records.map(r => (
+                              <label key={r.id} className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                                <input type="checkbox" checked={!!r.isLunas} onChange={() => handleToggleLunas(r.id, r.isLunas)} className="w-4 h-4 text-emerald-600" />
+                                <span className={`text-sm ${r.isLunas ? 'line-through text-gray-400' : 'font-semibold'}`}>
+                                  {r.tanggal}
+                                </span>
+                                {r.isLunas && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded ml-auto">Lunas</span>}
+                                {!r.isLunas && <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded ml-auto">Belum Lunas</span>}
+                              </label>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="p-4 text-right font-bold text-red-600 print:text-black print:border-black print:border">
+                          {unpaidCount > 0 ? `Rp ${(unpaidCount * (settings.nominalDenda || 0)).toLocaleString('id-ID')}` : <span className="text-emerald-600">Lunas Semua</span>}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     const Pengaturan = ({ ctx }) => {
       const { isAdmin, currentUser, setCurrentUser, accounts, setAccounts, settings, setSettings, warga, syncData, showToast, themeColor, setThemeColor, isDarkMode, setIsDarkMode, theme, ui, jadwal } = ctx;
       
@@ -1924,8 +2066,25 @@
             if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } 
             else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
             canvas.width = width; canvas.height = height;
-            const ctxCanvas = canvas.getContext('2d');
+            
+            const ctxCanvas = canvas.getContext('2d', { willReadFrequently: true });
             ctxCanvas.drawImage(img, 0, 0, width, height);
+            
+            try {
+               const imageData = ctxCanvas.getImageData(0, 0, width, height);
+               const data = imageData.data;
+               for (let i = 0; i < data.length; i += 4) {
+                 const r = data[i];
+                 const g = data[i + 1];
+                 const b = data[i + 2];
+                 if (r > 240 && g > 240 && b > 240) {
+                    data[i + 3] = 0; 
+                 }
+               }
+               ctxCanvas.putImageData(imageData, 0, 0);
+            } catch(e) {
+               console.warn("Could not remove background due to canvas taint (CORS).");
+            }
             
             setSettings(prev => ({...prev, logoUrl: canvas.toDataURL('image/png')}));
           }
@@ -2084,7 +2243,7 @@
                               )}
                             </td>
                             <td className="p-4 text-center">
-                              <button onClick={() => { if(acc.id !== currentUser.id) { const ud = accounts.filter(a=>a.id!==acc.id); setAccounts(ud); syncData("accounts", ud); } else { showToast('Gagal: Tidak bisa menghapus akun sendiri'); } }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-full transition">
+                              <button onClick={() => { if(acc.id !== currentUser.id) { const ud = accounts.filter(a=>a.id!==acc.id); setAccounts(ud); syncData("accounts", ud); showToast('Akun Dihapus'); } else { showToast('Gagal: Tidak bisa menghapus akun sendiri'); } }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-full transition">
                                 <Trash2 size={16} />
                               </button>
                             </td>
@@ -2264,7 +2423,6 @@
         setTimeout(() => setToastMessage(null), 3000);
       };
 
-      // SAFETY NET: Hindari fatal error jika localStorage theme tidak valid
       const theme = colorPalettes[themeColor] || colorPalettes['blue'];
       
       const ui = {
@@ -2286,6 +2444,7 @@
         { id: 'jadwal_absen', label: 'Jadwal & Absen', icon: CalendarDays, roles: ['Admin Jimpitan', 'Koordinator'] },
         { id: 'scan_keliling', label: 'Scan Jimpitan', icon: Camera, roles: ['Admin Jimpitan', 'Koordinator'] },
         { id: 'rekap', label: 'Rekap Laporan', icon: ClipboardList, roles: ['Admin Jimpitan', 'Koordinator'] },
+        { id: 'rekap_denda', label: 'Rekap Denda', icon: Wallet, roles: ['Admin Jimpitan'] },
         { id: 'barcode', label: 'Barcode Rumah', icon: QrCode, roles: ['Admin Jimpitan'] },
         { id: 'pengaturan', label: 'Pengaturan', icon: Settings, roles: ['Admin Jimpitan', 'Koordinator'] },
       ];
@@ -2364,8 +2523,8 @@
       return (
         <div className={`flex h-screen font-sans transition-colors duration-200 ${ui.bg}`}>
           {toastMessage && (
-            <div className="fixed top-5 right-5 z-[999] animate-fade-in bg-gray-900 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3">
-              <CheckCircle size={20} className="text-emerald-400" />
+            <div className="fixed top-5 right-5 z-[999] animate-fade-in bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3">
+              <CheckCircle size={20} className="text-white" />
               <span className="font-semibold text-sm">{toastMessage}</span>
             </div>
           )}
@@ -2430,6 +2589,7 @@
               {activeTab === 'jadwal_absen' && <JadwalDanAbsen ctx={ctx} />}
               {activeTab === 'scan_keliling' && <ScanJimpitan ctx={ctx} />} 
               {activeTab === 'rekap' && <RekapLaporan ctx={ctx} />} 
+              {activeTab === 'rekap_denda' && <RekapDenda ctx={ctx} />} 
               {activeTab === 'barcode' && <BarcodeGenerator ctx={ctx} />}
               {activeTab === 'pengaturan' && <Pengaturan ctx={ctx} />}
             </div>
