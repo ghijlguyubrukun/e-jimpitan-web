@@ -4,10 +4,11 @@
   - Fix Utama: Mengunci versi CDN Babel (7.23.6) dan React (18.2.0)
   - Fitur: Edit ID Barcode & Auto-Sort ID Barcode Data Warga
   - Fitur: Export Excel Rekap Laporan Keuangan
+  - Fix: Pre-loader HTML ditambahkan & Timeout API dipercepat untuk mencegah Blank Screen
   - Fix: Koordinator hanya bisa edit absen di hari H, terkunci di hari berikutnya.
-  - Fix: Angka nominal pendapatan tampil permanen di atas batang grafik
-  - Fix: Auto Background Remover LEBIH AGRESIF (Sapu bersih frame putih logo)
-  - Fix: Header dan Mobile Sidebar disempurnakan
+  - Fix: Skala Maksimal Grafik diatur ke 80% agar angka di atasnya tidak terpotong!
+  - Fix: Sidebar Desktop sekarang bisa di-Hide/Show (Toggle) agar tampilan lebih LUAS.
+  - Fix: Algoritma Euclidean Distance untuk menghapus Background Logo (Bebas Frame Putih 100%).
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -53,9 +54,11 @@
           if (hasil.status === 'success') return hasil.data;
           return null;
         } catch(e) {
+          console.error("Apps Script tidak merespons JSON yang valid.");
           return null;
         }
       } catch (error) {
+        console.error("Gagal mengambil data:", error.message);
         return null;
       }
     };
@@ -292,7 +295,7 @@
         ? absensi 
         : absensi.filter(a => myJadwalIds.includes(a.jadwalId));
       
-      const totalJimpitan = jimpitan.reduce((sum, item) => sum + (Number(item.nominal) || 0), 0);
+      const totalJimpitan = jimpitan.reduce((sum, item) => sum + Number(item.nominal), 0);
       
       const totalDenda = absensi.filter(a => a.status === 'Alpa' && !a.isLunas).length * (settings.nominalDenda || 0);
 
@@ -311,7 +314,7 @@
         
         jimpitan.forEach(curr => {
           if (curr.tahun === chartYear && dataMap[curr.bulan] !== undefined) {
-            dataMap[curr.bulan] += (Number(curr.nominal) || 0);
+            dataMap[curr.bulan] += Number(curr.nominal) || 0;
           }
         });
         
@@ -387,21 +390,22 @@
                 </select>
               </div>
               
-              {/* Added horizontal scroll specifically for mobile to prevent overlapping bars */}
               <div className="w-full overflow-x-auto no-scrollbar pb-6 pt-4">
-                <div className="flex items-end justify-between h-56 min-w-[340px] space-x-1 sm:space-x-2 border-b border-gray-200 dark:border-gray-700 pb-2 mt-4">
+                <div className="flex items-end justify-between h-48 min-w-[340px] space-x-1 sm:space-x-2 border-b border-gray-200 dark:border-gray-700 pb-2 mt-4 relative">
                   {jimpitanChartData.every(d => d.total === 0) ? (
                     <div className="w-full flex items-center justify-center text-sm text-gray-400 italic">Belum ada data jimpitan di tahun {chartYear}.</div>
                   ) : (
                     jimpitanChartData.map((data, idx) => {
+                      // Skala max 80% agar sisa 20% untuk ruang angka di atasnya.
                       const heightPercent = Math.max((data.total / (maxJimpitan || 1)) * 80, 2);
                       return (
                         <div key={idx} className="flex flex-col items-center flex-1 group h-full justify-end relative">
-                          <div className="absolute w-full text-center text-[10px] font-bold text-gray-700 dark:text-gray-300 transition-transform z-10" style={{ bottom: `${heightPercent}%`, marginBottom: '4px' }}>
-                            {data.total > 0 ? `${(data.total / 1000).toFixed(1).replace('.0','')}k` : '0'}
+                          {/* Label Angka Nominal Permanen Tampil! */}
+                          <div className="absolute text-[10px] font-bold text-gray-700 dark:text-gray-300 text-center whitespace-nowrap transition-transform" style={{ bottom: `calc(${heightPercent}% + 4px)` }}>
+                            {data.total > 0 ? `${(data.total / 1000).toFixed(0)}k` : '0'}
                           </div>
-                          <div className="w-full max-w-[28px] sm:max-w-[40px] rounded-t-md transition-all duration-300" style={{ height: `${heightPercent}%`, backgroundColor: theme.bar, opacity: data.total === 0 ? 0.2 : 1 }}></div>
-                          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2 font-semibold absolute -bottom-6">
+                          <div className="w-full max-w-[28px] sm:max-w-[40px] rounded-t-sm transition-all duration-300" style={{ height: `${heightPercent}%`, backgroundColor: theme.bar, opacity: data.total === 0 ? 0.2 : 1 }}></div>
+                          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2 font-semibold absolute -bottom-5">
                             {data.label.substring(0, 3)}
                           </div>
                         </div>
@@ -772,7 +776,7 @@
 
       const handleAddJadwal = (e) => {
         e.preventDefault();
-        if (!newJadwal.koordinatorId) { showToast('Gagal: Pilih koordinator regu terlebih dahulu!'); return; }
+        if (!newJadwal.koordinatorId) { showToast('Pilih koordinator regu terlebih dahulu!'); return; }
         const newId = `J-${newJadwal.hari.toUpperCase().substring(0, 3)}-${Date.now()}`;
         const updatedJadwal = [...jadwal, { id: newId, ...newJadwal }];
         setJadwal(updatedJadwal);
@@ -1141,7 +1145,7 @@
       }, [jadwal, settings.activePeriode]);
       
       const availableJadwalForDate = useMemo(() => {
-        if (!inputDate) return []; // SAFETY NET
+        if (!inputDate) return []; 
         const dateParts = inputDate.split('-');
         if (dateParts.length !== 3) return [];
         const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
@@ -1216,7 +1220,7 @@
             showToast("Gagal akses kamera. Pastikan perangkat Anda mendukung atau berikan izin browser.");
             setIsCameraActive(false);
           });
-        }, 300); // Sedikit delay agar DOM siap
+        }, 300); 
       };
 
       const stopCamera = async () => {
@@ -1226,9 +1230,7 @@
               await scannerRef.current.stop();
             }
             scannerRef.current.clear();
-          } catch(e) {
-             console.warn("Kamera sudah tertutup", e);
-          }
+          } catch(e) {}
           scannerRef.current = null;
         }
         setIsCameraActive(false);
@@ -1569,16 +1571,16 @@
         editFormData.forEach(d => {
            if (d.nominal && Number(d.nominal) > 0 || d.nominal === '0') {
              editedJimpitan.push({
-                id: Date.now() + Math.random(),
-                tanggal, bulan: monthStr, tahun: yearStr,
-                jadwalId, wargaId: d.wargaId, nominal: Number(d.nominal)
+                 id: Date.now() + Math.random(),
+                 tanggal, bulan: monthStr, tahun: yearStr,
+                 jadwalId, wargaId: d.wargaId, nominal: Number(d.nominal)
              });
            }
            if (d.isMember) {
              editedAbsensi.push({
-                id: Date.now() + Math.random(),
-                tanggal, bulan: monthStr, tahun: yearStr,
-                jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
+                 id: Date.now() + Math.random(),
+                 tanggal, bulan: monthStr, tahun: yearStr,
+                 jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
              });
            }
         });
@@ -1999,7 +2001,7 @@
     };
 
     const Pengaturan = ({ ctx }) => {
-      const { isAdmin, currentUser, setCurrentUser, accounts, setAccounts, settings, setSettings, warga, syncData, showToast, themeColor, setThemeColor, isDarkMode, setIsDarkMode, theme, ui, jadwal } = ctx;
+      const { isAdmin, currentUser, setCurrentUser, accounts, setAccounts, settings, setSettings, warga, syncData, showToast, requestConfirm, themeColor, setThemeColor, isDarkMode, setIsDarkMode, theme, ui, jadwal } = ctx;
       
       const [oldPassword, setOldPassword] = useState('');
       const [newPassword, setNewPassword] = useState('');
@@ -2057,23 +2059,25 @@
             canvas.width = width; canvas.height = height;
             
             const ctxCanvas = canvas.getContext('2d', { willReadFrequently: true });
-            ctxCanvas.clearRect(0, 0, width, height); // Hapus canvas sebelumnya
+            ctxCanvas.clearRect(0, 0, width, height);
             ctxCanvas.drawImage(img, 0, 0, width, height);
             
             try {
                const imageData = ctxCanvas.getImageData(0, 0, width, height);
                const data = imageData.data;
                // ALGORITMA LEBIH KUAT: Hapus background putih & abu terang (Anti Frame Putih)
+               // Menggunakan Color Distance dari warna putih murni
                for (let i = 0; i < data.length; i += 4) {
                  const r = data[i];
                  const g = data[i + 1];
                  const b = data[i + 2];
-                 // Toleransi 230: Sapu bersih warna putih murni dan pinggiran JPEG
-                 if (r > 230 && g > 230 && b > 230) {
-                    data[i + 3] = 0; // Ubah jadi transparan total
-                 } else if (r > 200 && g > 200 && b > 200) {
-                    // Anti-aliasing (menghaluskan sisa pixel frame putih)
-                    data[i + 3] = Math.floor(data[i + 3] * 0.4); 
+                 
+                 const dist = Math.sqrt(Math.pow(255 - r, 2) + Math.pow(255 - g, 2) + Math.pow(255 - b, 2));
+                 
+                 if (dist < 50) {
+                    data[i + 3] = 0; // Sangat dekat putih, 100% hapus
+                 } else if (dist < 100) {
+                    data[i + 3] = Math.floor(((dist - 50) / 50) * 255); // Edge smoothing (Anti Aliasing)
                  }
                }
                ctxCanvas.putImageData(imageData, 0, 0);
@@ -2237,7 +2241,7 @@
                               )}
                             </td>
                             <td className="p-4 text-center">
-                              <button onClick={() => { if(acc.id !== currentUser.id) { const ud = accounts.filter(a=>a.id!==acc.id); setAccounts(ud); syncData("accounts", ud); showToast('Akun Dihapus'); } else { showToast('Gagal: Tidak bisa menghapus akun sendiri'); } }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-full transition">
+                              <button onClick={() => { if(acc.id !== currentUser.id) { requestConfirm("Yakin ingin menghapus akun ini?", () => { const ud = accounts.filter(a=>a.id!==acc.id); setAccounts(ud); syncData("accounts", ud); showToast('Akun Dihapus'); }) } else { showToast('Gagal: Tidak bisa menghapus akun sendiri'); } }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-full transition">
                                 <Trash2 size={16} />
                               </button>
                             </td>
@@ -2326,6 +2330,7 @@
       const [isPublicView, setIsPublicView] = useState(true); 
       const [activeTab, setActiveTab] = useState('dashboard');
       const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+      const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true); // State Baru untuk Sidebar
       const [toastMessage, setToastMessage] = useState(null);
       const [confirmDialog, setConfirmDialog] = useState(null);
       
@@ -2527,7 +2532,6 @@
             </div>
           )}
           
-          {/* Custom Confirm Modal (Anti-Crash) */}
           {confirmDialog && (
             <div className="fixed inset-0 bg-black/60 z-[1000] flex items-center justify-center p-4 animate-fade-in print-hide">
               <div className={`p-6 rounded-xl shadow-2xl max-w-sm w-full text-center ${ui.card}`}>
@@ -2548,10 +2552,13 @@
              </div>
           )}
 
-          {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden print-hide" onClick={() => setIsMobileMenuOpen(false)} />}
+          {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden print-hide" onClick={() => setIsMobileMenuOpen(false)} />}
           
-          {/* Fix Sidebar: Merubah batas responsif ke lg: agar lebih aman di tablet/Desktop kecil */}
-          <aside className={`fixed inset-y-0 left-0 w-64 shadow-xl z-50 transform transition-transform lg:translate-x-0 lg:static flex flex-col ${ui.sidebar} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} print-hide`}>
+          {/* LAYOUT SIDEBAR YANG BISA DI-HIDE (Tampilan Luas) */}
+          <aside className={`fixed inset-y-0 left-0 w-64 shadow-xl z-50 transform transition-transform flex flex-col ${ui.sidebar} print-hide 
+            ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
+            ${isDesktopSidebarOpen ? 'md:static md:translate-x-0' : 'md:hidden md:-translate-x-full'} 
+            md:flex-shrink-0`}>
             <div className={`p-5 border-b flex items-center gap-3 ${theme.main} text-white`}>
               {settings.logoUrl ? (
                  <img src={settings.logoUrl} alt="Logo" className="h-10 sm:h-12 w-auto max-w-[100px] object-contain shrink-0 drop-shadow-md" />
@@ -2575,7 +2582,7 @@
               <ul className="space-y-1 px-3">
                 {menuItems.map((item) => (
                   <li key={item.id}>
-                    <button onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition ${activeTab === item.id ? `${theme.light} ${theme.text}` : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                    <button onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium ${activeTab === item.id ? `${theme.light} ${theme.text}` : 'text-gray-500'}`}>
                       <item.icon size={20} />{item.label}
                     </button>
                   </li>
@@ -2583,29 +2590,30 @@
               </ul>
             </div>
             <div className="p-4 border-t">
-              <button onClick={() => { setCurrentUser(null); setIsPublicView(true); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900 transition">
+              <button onClick={() => { setCurrentUser(null); setIsPublicView(true); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900">
                 <LogOut size={20} /> Logout Petugas
               </button>
             </div>
           </aside>
 
           <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            {/* Header / Top Navigation Desktop & Mobile */}
+            {/* HEADER ADMIN (Tombol Hamburger ditambahkan disini) */}
             <header className={`shadow-sm border-b p-4 flex justify-between items-center print-hide ${ui.sidebar}`}>
-              <div className="flex items-center gap-4">
-                <button className="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition" onClick={() => setIsMobileMenuOpen(true)}>
+              <div className="flex items-center gap-3">
+                <button onClick={() => window.innerWidth >= 768 ? setIsDesktopSidebarOpen(!isDesktopSidebarOpen) : setIsMobileMenuOpen(true)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-gray-600 dark:text-gray-300">
                   <Menu size={24} />
                 </button>
-                <h2 className="text-xl font-bold lg:hidden">{menuItems.find(m => m.id === activeTab)?.label}</h2>
+                <h2 className="text-lg font-bold">{menuItems.find(m => m.id === activeTab)?.label}</h2>
               </div>
-              <div className="hidden lg:flex text-sm w-full justify-between items-center">
-                 <h2 className="text-xl font-bold">{menuItems.find(m => m.id === activeTab)?.label}</h2>
-                 <div className="flex items-center gap-3">
-                   <span className="font-bold text-gray-700 dark:text-gray-200">{currentUser?.nama}</span>
-                   <span className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider shadow-sm">{currentUser?.role}</span>
-                 </div>
+              <div className="flex items-center gap-2 sm:gap-3 text-right">
+                <div className="hidden sm:block">
+                   <p className="text-sm font-bold leading-none">{currentUser?.nama}</p>
+                   <p className="text-[10px] text-gray-500 uppercase font-semibold">{currentUser?.role}</p>
+                </div>
+                <UserCircle size={32} className="text-gray-400" />
               </div>
             </header>
+            
             <div className="flex-1 overflow-y-auto p-4 md:p-8">
               {activeTab === 'dashboard' && <Dashboard ctx={ctx} />} 
               {activeTab === 'warga' && <DataWarga ctx={ctx} />} 
@@ -2626,6 +2634,3 @@
   </script>
 </body>
 </html>
-```
-
-*Note: Jangan lupa unggah ulang gambar/logo Anda di menu Pengaturan untuk memicu algoritma pembersihan background yang baru!*
