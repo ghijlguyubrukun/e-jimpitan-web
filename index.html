@@ -2489,8 +2489,8 @@
                </div>
             )}
             
-            {/* PUBLIC HEADER: WARNA TEMA SESUAI PERMINTAAN */}
-            <header className={`${theme.main} shadow-md sticky top-0 z-50 border-b border-black/10`}>
+            {/* HEADER PUBLIK DENGAN WARNA TEMA DAN BINGKAI PUTIH LOGO */}
+            <header className={`${theme.main} text-white shadow-md sticky top-0 z-50`}>
               <div className="max-w-7xl mx-auto px-4">
                 <div className="flex justify-between items-center h-20 sm:h-24">
                   <div className="flex items-center gap-3 sm:gap-4">
@@ -2508,14 +2508,14 @@
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 text-white">
-                    <button onClick={() => setIsDarkMode(!isDarkMode)} className="hover:opacity-80">
+                  <div className="flex items-center gap-4">
+                    <button onClick={() => setIsDarkMode(!isDarkMode)} className="text-white hover:opacity-80">
                       <Sun size={20} />
                     </button>
-                    <button onClick={() => setIsPublicView(false)} className={`hidden sm:flex items-center gap-2 bg-white/20 px-4 py-2 rounded-lg font-bold shadow hover:bg-white/30`}>
+                    <button onClick={() => setIsPublicView(false)} className={`hidden sm:flex items-center gap-2 bg-white/20 px-4 py-2 rounded-lg font-bold shadow hover:bg-white/30 text-white transition`}>
                       <LogIn size={18} /> Login Petugas
                     </button>
-                    <button onClick={() => setIsPublicView(false)} className={`flex sm:hidden items-center gap-2 bg-white/20 p-2 rounded-lg font-bold`}>
+                    <button onClick={() => setIsPublicView(false)} className={`flex sm:hidden items-center gap-2 bg-white/20 p-2 rounded-lg font-bold text-white transition`}>
                       <LogIn size={18} />
                     </button>
                   </div>
@@ -2564,14 +2564,14 @@
 
           {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden print-hide" onClick={() => setIsMobileMenuOpen(false)} />}
           
-          {/* LAYOUT SIDEBAR ADMIN */}
+          {/* LAYOUT SIDEBAR YANG BISA DI-HIDE (Tampilan Luas) */}
           <aside className={`fixed inset-y-0 left-0 w-64 shadow-xl z-50 transform transition-transform flex flex-col ${ui.sidebar} print-hide 
             ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
             ${isDesktopSidebarOpen ? 'md:static md:translate-x-0' : 'md:hidden md:-translate-x-full'} 
             md:flex-shrink-0`}>
             
-            {/* SIDEBAR HEADER: WARNA TEMA DENGAN KOTAK PUTIH UNTUK LOGO */}
-            <div className={`p-5 border-b flex items-center gap-3 ${theme.main}`}>
+            <div className={`p-5 border-b flex items-center gap-3 ${theme.main} text-white`}>
+              {/* BINGKAI PUTIH UNTUK LOGO */}
               <div className="bg-white p-1.5 rounded-xl shadow-md flex items-center justify-center">
                 {settings.logoUrl ? (
                    <img src={settings.logoUrl} alt="Logo" className="h-10 sm:h-12 w-auto max-w-[100px] object-contain shrink-0" />
@@ -2579,9 +2579,9 @@
                    <ShieldCheck size={32} className={`shrink-0 ${theme.text}`} />
                 )}
               </div>
-              <div className="flex flex-col justify-center min-w-0 text-white">
-                <h1 className="text-lg sm:text-xl font-black truncate leading-tight">{settings.webName}</h1>
-                <span className="text-[10px] sm:text-xs opacity-90 truncate leading-tight mt-0.5">{settings.tagline}</span>
+              <div className="flex flex-col justify-center min-w-0">
+                <h1 className="text-lg sm:text-xl font-black truncate leading-tight text-white">{settings.webName}</h1>
+                <span className="text-[10px] sm:text-xs opacity-90 truncate leading-tight mt-0.5 text-blue-100">{settings.tagline}</span>
               </div>
             </div>
             
