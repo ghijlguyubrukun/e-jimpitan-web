@@ -4,14 +4,13 @@
   - Fix Utama: Mengunci versi CDN Babel (7.23.6) dan React (18.2.0)
   - Fitur: Edit ID Barcode & Auto-Sort ID Barcode Data Warga
   - Fitur: Export Excel Rekap Laporan Keuangan
-  - Fix Layout Print: Multi-page Print untuk PDF & Barcode
-  - Fitur: Filter Periode khusus Admin, Koordinator otomatis periode aktif
-  - Fitur: Rekap Denda (Checklist pelunasan denda per bulan per warga)
-  - Fitur: Auto Background Remover (menghilangkan background putih pada logo)
-  - Fix: Pre-loader HTML ditambahkan & Timeout API dipercepat untuk mencegah Blank Screen
-  - Fix: Koordinator hanya bisa edit absen di hari H, terkunci di hari berikutnya.
-  - Fix: Grafik Pemasukan sangat responsif di HP (Auto-Scroll & Teks Dinamis)
-  - Fix: Menu otomatis menutup dengan sempurna setelah diklik di versi Mobile.
+  - Fix: Sidebar Desktop sekarang bisa di-Hide/Show (Toggle) agar tampilan lebih LUAS.
+  - Fix: Algoritma Euclidean Distance untuk menghapus Background Logo (Bebas Frame Putih 100%).
+  - Fitur: Favicon website ditambahkan.
+  - Fix: Angka nominal grafik tampil utuh (contoh: 316.900) & tidak terpotong.
+  - Fix (Baru): Total Keseluruhan (Denda & Jimpitan) di Laporan Dashboard Warga.
+  - Fix (Baru): Nama Web & Tagline responsif (melipat/break-words), bebas terpotong di HP.
+  - Fix (Baru): Bingkai putih untuk Logo di atas Header/Sidebar berwarna agar logo tidak mati.
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -20,6 +19,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>e-Jimpitan</title>
+
+  <!-- Favicon Aplikasi -->
+  <link rel="icon" type="image/png" href="favicon.png">
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -28,10 +30,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- Babel Standalone (Dikunci di versi 7.23.6 yang aman dari Bug Import) -->
+  <!-- Babel Standalone -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
 
-  <!-- Lucide Icons & HTML5 QR Code Scanner (Dikunci versinya) -->
+  <!-- Lucide Icons & HTML5 QR Code Scanner -->
   <script src="https://unpkg.com/lucide@0.344.0"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
 
@@ -41,7 +43,7 @@
     window.ambilDataDariSpreadsheet = async function() {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // Dipercepat menjadi 10 detik agar tidak blank
+        const timeoutId = setTimeout(() => controller.abort(), 10000); 
 
         const response = await fetch(scriptURL, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -89,14 +91,11 @@
         try {
           const hasil = JSON.parse(text);
           if (hasil.status === 'success') return true;
-          console.error("GAGAL MENYIMPAN KE DATABASE:\n" + hasil.message);
           return false;
         } catch(e) {
-          console.error("GAGAL MENYIMPAN: Sistem gagal merespons.");
           return false;
         }
       } catch (error) {
-        console.error('Terjadi error jaringan. Cek koneksi internet Anda.');
         return false;
       }
     };
@@ -130,14 +129,13 @@
     .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     
-    /* Utility class for hiding scrollbar visually but allowing scroll */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
 <body class="bg-gray-50">
   <div id="root">
-    <!-- Tampilan loading manual HTML sebelum React di-render (mencegah blank screen) -->
+    <!-- Loader Manual HTML sebelum React aktif -->
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: #4B5563;">
       <svg class="animate-spin" style="width: 48px; height: 48px; color: #3B82F6; margin-bottom: 16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -163,7 +161,7 @@
             try {
               spanRef.current.innerHTML = `<i data-lucide="${name}"></i>`;
               window.lucide.createIcons({ root: spanRef.current, attrs: { width: size, height: size } });
-            } catch (err) { console.error("Lucide Error", err); }
+            } catch (err) {}
           }
         };
         renderIcon();
@@ -192,7 +190,6 @@
     const Sun = (p) => <LucideIcon name="sun" {...p} />;
     const Palette = (p) => <LucideIcon name="palette" {...p} />;
     const UserPlus = (p) => <LucideIcon name="user-plus" {...p} />;
-    const Upload = (p) => <LucideIcon name="upload" {...p} />;
     const FileDown = (p) => <LucideIcon name="file-down" {...p} />;
     const ShieldCheck = (p) => <LucideIcon name="shield-check" {...p} />;
     const CheckSquare = (p) => <LucideIcon name="check-square" {...p} />;
@@ -201,7 +198,6 @@
     const LogIn = (p) => <LucideIcon name="log-in" {...p} />;
     const KeyRound = (p) => <LucideIcon name="key-round" {...p} />;
     const Edit = (p) => <LucideIcon name="edit" {...p} />;
-    const List = (p) => <LucideIcon name="list" {...p} />;
     const ImageIcon = (p) => <LucideIcon name="image" {...p} />;
     const Wallet = (p) => <LucideIcon name="wallet" {...p} />;
 
@@ -249,18 +245,19 @@
           <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
               <div className="text-center mb-8">
-                {settings?.logoUrl ? (
-                  <img src={settings.logoUrl} alt="Logo" className="h-20 w-auto mx-auto mb-4 object-contain drop-shadow-md" />
-                ) : (
-                  <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${theme?.light || 'bg-blue-50'}`}>
-                    <ShieldCheck size={40} className={theme?.text || 'text-blue-600'} />
-                  </div>
-                )}
+                {/* Logo Frame Putih di Form Login */}
+                <div className="bg-white p-2 rounded-xl shadow-md flex items-center justify-center mx-auto w-24 h-24 mb-4">
+                  {settings?.logoUrl ? (
+                    <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                  ) : (
+                    <ShieldCheck size={48} className={theme?.text || 'text-blue-600'} />
+                  )}
+                </div>
                 <h1 className="text-2xl font-black">{settings?.webName || 'e-Jimpitan'}</h1>
                 <p className="text-sm text-gray-500 mt-1">{settings?.tagline || 'Sistem Keuangan Warga'}</p>
               </div>
               <form onSubmit={handleLogin} className="space-y-5">
-                {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm font-semibold">{error}</div>}
+                {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm font-semibold animate-fade-in">{error}</div>}
                 <div>
                   <label className="block text-sm font-bold mb-2">Username</label>
                   <input type="text" required className={`w-full p-3 rounded-lg border ${ui?.input || ''}`} value={username} onChange={e => setUsername(e.target.value)} placeholder="Masukkan username..." />
@@ -304,9 +301,8 @@
         ? absensi 
         : absensi.filter(a => myJadwalIds.includes(a.jadwalId));
       
-      const totalJimpitan = jimpitan.reduce((sum, item) => sum + (Number(item.nominal) || 0), 0);
+      const totalJimpitan = jimpitan.reduce((sum, item) => sum + Number(item.nominal), 0);
       
-      // HANYA DENDA YANG BELUM LUNAS YANG DIHITUNG SEBAGAI TUNGGAKAN
       const totalDenda = absensi.filter(a => a.status === 'Alpa' && !a.isLunas).length * (settings.nominalDenda || 0);
 
       const availableYears = useMemo(() => {
@@ -324,7 +320,7 @@
         
         jimpitan.forEach(curr => {
           if (curr.tahun === chartYear && dataMap[curr.bulan] !== undefined) {
-            dataMap[curr.bulan] += (Number(curr.nominal) || 0);
+            dataMap[curr.bulan] += Number(curr.nominal) || 0;
           }
         });
         
@@ -361,6 +357,9 @@
           };
         });
       }, [ctx.warga, jimpitan, absensi, settings.nominalDenda]);
+
+      const grandTotalDendaDashboard = rekapWarga.reduce((sum, r) => sum + r.denda, 0);
+      const grandTotalJimpitanDashboard = rekapWarga.reduce((sum, r) => sum + r.totalJimpitan, 0);
 
       return (
         <div className="space-y-6 animate-fade-in print-content">
@@ -400,21 +399,22 @@
                 </select>
               </div>
               
-              {/* Added horizontal scroll specifically for mobile to prevent overlapping bars */}
-              <div className="w-full overflow-x-auto no-scrollbar pb-6 pt-2">
-                <div className="flex items-end justify-between h-48 min-w-[340px] space-x-1 sm:space-x-2 border-b border-gray-200 dark:border-gray-700 pb-2 mt-2">
+              <div className="w-full overflow-x-auto no-scrollbar pb-6 pt-4">
+                <div className="flex items-end justify-between h-48 min-w-[340px] space-x-1 sm:space-x-2 border-b border-gray-200 dark:border-gray-700 pb-2 mt-4 relative">
                   {jimpitanChartData.every(d => d.total === 0) ? (
                     <div className="w-full flex items-center justify-center text-sm text-gray-400 italic">Belum ada data jimpitan di tahun {chartYear}.</div>
                   ) : (
                     jimpitanChartData.map((data, idx) => {
-                      const heightPercent = Math.max((data.total / (maxJimpitan || 1)) * 100, 2);
+                      // Skala maksimal 80% agar sisa 20% ke atas untuk menampung teks angka nominal
+                      const heightPercent = Math.max((data.total / (maxJimpitan || 1)) * 80, 2);
                       return (
                         <div key={idx} className="flex flex-col items-center flex-1 group h-full justify-end relative">
-                          <div className="absolute -top-8 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10 shadow-lg">
-                            Rp {data.total.toLocaleString('id-ID')}
+                          {/* Label Angka Nominal Tampil Utuh & Permanen */}
+                          <div className="absolute text-[9px] sm:text-[10px] font-bold text-gray-700 dark:text-gray-300 text-center whitespace-nowrap transition-transform" style={{ bottom: `calc(${heightPercent}% + 4px)` }}>
+                            {data.total > 0 ? data.total.toLocaleString('id-ID') : '0'}
                           </div>
                           <div className="w-full max-w-[28px] sm:max-w-[40px] rounded-t-sm transition-all duration-300" style={{ height: `${heightPercent}%`, backgroundColor: theme.bar, opacity: data.total === 0 ? 0.2 : 1 }}></div>
-                          <div className="text-[9px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2 font-semibold absolute -bottom-5">
+                          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2 font-semibold absolute -bottom-5">
                             {data.label.substring(0, 3)}
                           </div>
                         </div>
@@ -528,6 +528,12 @@
                         </td>
                       </tr>
                     ))}
+                    {/* FITUR BARU: TOTAL KESELURUHAN PADA LAPORAN PUBLIK */}
+                    <tr className="bg-gray-100 dark:bg-gray-800 font-bold text-sm">
+                      <td colSpan="3" className="p-4 text-right uppercase">Total Keseluruhan:</td>
+                      <td className="p-4 text-right text-red-600">Rp {grandTotalDendaDashboard.toLocaleString('id-ID')}</td>
+                      <td className="p-4 text-right text-emerald-600">Rp {grandTotalJimpitanDashboard.toLocaleString('id-ID')}</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -538,7 +544,7 @@
     };
 
     const DataWarga = ({ ctx }) => {
-      const { warga, setWarga, syncData, showToast, theme, ui } = ctx;
+      const { warga, setWarga, syncData, showToast, requestConfirm, theme, ui } = ctx;
       const [showForm, setShowForm] = useState(false);
       const [isEditing, setIsEditing] = useState(false);
       
@@ -587,12 +593,12 @@
       };
 
       const handleDeleteWarga = (id) => {
-        if(window.confirm('Apakah Anda yakin ingin menghapus data warga ini?')) {
+        requestConfirm('Apakah Anda yakin ingin menghapus data warga ini?', () => {
           const updatedWarga = warga.filter(x => x.id !== id);
           setWarga(updatedWarga);
           syncData("warga", updatedWarga);
           showToast('Warga berhasil dihapus');
-        }
+        });
       };
 
       return (
@@ -608,7 +614,7 @@
             <form onSubmit={handleAddWarga} className={`${ui.card} p-6 rounded-xl animate-fade-in border-l-4 border-l-${theme.text.split('-')[1]}-500`}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-1">ID Barcode (Cth: H-02, G-01, I-03)</label>
+                  <label className="block text-sm font-semibold mb-1">ID Barcode (Cth: H-02, G-01)</label>
                   <input required type="text" className={`w-full p-2.5 rounded-lg border ${ui.input} uppercase`} value={newWarga.idBaru} onChange={e => setNewWarga({...newWarga, idBaru: e.target.value})} placeholder="Blok & No Rumah" />
                 </div>
                 <div>
@@ -672,7 +678,7 @@
     };
 
     const JadwalDanAbsen = ({ ctx }) => {
-      const { isAdmin, jadwal, setJadwal, absensi, setAbsensi, jimpitan, setJimpitan, currentUser, getWargaName, syncData, showToast, theme, ui, settings, setSettings } = ctx;
+      const { isAdmin, jadwal, setJadwal, absensi, setAbsensi, jimpitan, setJimpitan, currentUser, getWargaName, syncData, showToast, requestConfirm, theme, ui, settings, setSettings } = ctx;
       const [subTab, setSubTab] = useState('input_absen'); 
       const [selectedJadwalId, setSelectedJadwalId] = useState('');
       const [absenData, setAbsenData] = useState({}); 
@@ -785,7 +791,7 @@
 
       const handleAddJadwal = (e) => {
         e.preventDefault();
-        if (!newJadwal.koordinatorId) { showToast('Gagal: Pilih koordinator regu terlebih dahulu!'); return; }
+        if (!newJadwal.koordinatorId) { showToast('Pilih koordinator regu terlebih dahulu!'); return; }
         const newId = `J-${newJadwal.hari.toUpperCase().substring(0, 3)}-${Date.now()}`;
         const updatedJadwal = [...jadwal, { id: newId, ...newJadwal }];
         setJadwal(updatedJadwal);
@@ -796,12 +802,12 @@
       };
 
       const handleDeleteJadwal = (id) => {
-        if(window.confirm('Apakah Anda yakin ingin menghapus Regu/Jadwal ini?')) {
+        requestConfirm('Apakah Anda yakin ingin menghapus Regu/Jadwal ini?', () => {
           const updatedJadwal = jadwal.filter(j => j.id !== id);
           setJadwal(updatedJadwal);
           syncData("jadwal", updatedJadwal);
           showToast('Jadwal regu berhasil dihapus');
-        }
+        });
       };
 
       const handleAddMemberToRegu = (jadwalId, wargaId) => {
@@ -818,7 +824,7 @@
       };
 
       const handleRemoveMemberFromRegu = (jadwalId, wargaId) => {
-        if(window.confirm('Hapus anggota ini dari regu ronda?')) {
+        requestConfirm('Hapus anggota ini dari regu ronda?', () => {
           const updatedJadwal = jadwal.map(j => {
             if (j.id === jadwalId) {
               return { ...j, anggotaIds: j.anggotaIds.filter(id => id !== wargaId) };
@@ -828,7 +834,7 @@
           setJadwal(updatedJadwal);
           syncData("jadwal", updatedJadwal);
           showToast('Anggota dihapus dari regu!');
-        }
+        });
       };
 
       const riwayatAbsensi = useMemo(() => {
@@ -1154,7 +1160,7 @@
       }, [jadwal, settings.activePeriode]);
       
       const availableJadwalForDate = useMemo(() => {
-        if (!inputDate) return []; // SAFETY NET
+        if (!inputDate) return []; 
         const dateParts = inputDate.split('-');
         if (dateParts.length !== 3) return [];
         const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
@@ -1229,7 +1235,7 @@
             showToast("Gagal akses kamera. Pastikan perangkat Anda mendukung atau berikan izin browser.");
             setIsCameraActive(false);
           });
-        }, 300); // Sedikit delay agar DOM siap
+        }, 300); 
       };
 
       const stopCamera = async () => {
@@ -1239,9 +1245,7 @@
               await scannerRef.current.stop();
             }
             scannerRef.current.clear();
-          } catch(e) {
-             console.warn("Kamera sudah tertutup", e);
-          }
+          } catch(e) {}
           scannerRef.current = null;
         }
         setIsCameraActive(false);
@@ -1387,7 +1391,7 @@
     };
 
     const RekapLaporan = ({ ctx }) => {
-      const { warga, jimpitan, setJimpitan, absensi, setAbsensi, jadwal, settings, theme, ui, getWargaName, syncData, showToast, isAdmin, currentUser } = ctx;
+      const { warga, jimpitan, setJimpitan, absensi, setAbsensi, jadwal, settings, theme, ui, getWargaName, syncData, showToast, requestConfirm, isAdmin, currentUser } = ctx;
       
       const [rekapTab, setRekapTab] = useState(isAdmin ? 'akumulasi' : 'harian'); 
       const [filterPeriode, setFilterPeriode] = useState('Semua');
@@ -1582,16 +1586,16 @@
         editFormData.forEach(d => {
            if (d.nominal && Number(d.nominal) > 0 || d.nominal === '0') {
              editedJimpitan.push({
-                id: Date.now() + Math.random(),
-                tanggal, bulan: monthStr, tahun: yearStr,
-                jadwalId, wargaId: d.wargaId, nominal: Number(d.nominal)
+                 id: Date.now() + Math.random(),
+                 tanggal, bulan: monthStr, tahun: yearStr,
+                 jadwalId, wargaId: d.wargaId, nominal: Number(d.nominal)
              });
            }
            if (d.isMember) {
              editedAbsensi.push({
-                id: Date.now() + Math.random(),
-                tanggal, bulan: monthStr, tahun: yearStr,
-                jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
+                 id: Date.now() + Math.random(),
+                 tanggal, bulan: monthStr, tahun: yearStr,
+                 jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
              });
            }
         });
@@ -1617,16 +1621,18 @@
       };
 
       const handleHapusLaporan = () => {
-         const newJimpitan = jimpitan.filter(j => !(j.tanggal === editModal.tanggal && j.jadwalId === editModal.jadwalId));
-         const newAbsensi = absensi.filter(a => !(a.tanggal === editModal.tanggal && a.jadwalId === editModal.jadwalId));
-         
-         setJimpitan(newJimpitan);
-         setAbsensi(newAbsensi);
-         syncData("jimpitan", newJimpitan);
-         syncData("absensi", newAbsensi);
-         
-         setEditModal(null);
-         showToast("Laporan berhasil dihapus secara total.");
+         requestConfirm("Yakin ingin menghapus seluruh laporan (Absen & Jimpitan) pada tanggal dan regu ini?", () => {
+             const newJimpitan = jimpitan.filter(j => !(j.tanggal === editModal.tanggal && j.jadwalId === editModal.jadwalId));
+             const newAbsensi = absensi.filter(a => !(a.tanggal === editModal.tanggal && a.jadwalId === editModal.jadwalId));
+             
+             setJimpitan(newJimpitan);
+             setAbsensi(newAbsensi);
+             syncData("jimpitan", newJimpitan);
+             syncData("absensi", newAbsensi);
+             
+             setEditModal(null);
+             showToast("Laporan berhasil dihapus secara total.");
+         });
       };
 
       return (
@@ -2010,7 +2016,7 @@
     };
 
     const Pengaturan = ({ ctx }) => {
-      const { isAdmin, currentUser, setCurrentUser, accounts, setAccounts, settings, setSettings, warga, syncData, showToast, themeColor, setThemeColor, isDarkMode, setIsDarkMode, theme, ui, jadwal } = ctx;
+      const { isAdmin, currentUser, setCurrentUser, accounts, setAccounts, settings, setSettings, warga, syncData, showToast, requestConfirm, themeColor, setThemeColor, isDarkMode, setIsDarkMode, theme, ui, jadwal } = ctx;
       
       const [oldPassword, setOldPassword] = useState('');
       const [newPassword, setNewPassword] = useState('');
@@ -2053,7 +2059,7 @@
         const file = e.target.files[0];
         if (!file) return;
         if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
-          alert('Hanya format gambar JPG dan PNG yang diperbolehkan.');
+          showToast('Hanya format gambar JPG dan PNG yang diperbolehkan.');
           return;
         }
         const reader = new FileReader();
@@ -2068,25 +2074,31 @@
             canvas.width = width; canvas.height = height;
             
             const ctxCanvas = canvas.getContext('2d', { willReadFrequently: true });
+            ctxCanvas.clearRect(0, 0, width, height);
             ctxCanvas.drawImage(img, 0, 0, width, height);
             
             try {
                const imageData = ctxCanvas.getImageData(0, 0, width, height);
                const data = imageData.data;
+               // ALGORITMA LEBIH KUAT: Hapus background putih & abu terang (Anti Frame Putih)
                for (let i = 0; i < data.length; i += 4) {
                  const r = data[i];
                  const g = data[i + 1];
                  const b = data[i + 2];
-                 if (r > 240 && g > 240 && b > 240) {
-                    data[i + 3] = 0; 
+                 
+                 const dist = Math.sqrt(Math.pow(255 - r, 2) + Math.pow(255 - g, 2) + Math.pow(255 - b, 2));
+                 
+                 if (dist < 50) {
+                    data[i + 3] = 0; // Sangat dekat putih, 100% hapus
+                 } else if (dist < 100) {
+                    data[i + 3] = Math.floor(((dist - 50) / 50) * 255); // Edge smoothing (Anti Aliasing)
                  }
                }
                ctxCanvas.putImageData(imageData, 0, 0);
-            } catch(e) {
-               console.warn("Could not remove background due to canvas taint (CORS).");
-            }
+            } catch(e) {}
             
             setSettings(prev => ({...prev, logoUrl: canvas.toDataURL('image/png')}));
+            showToast("Logo otomatis diubah menjadi transparan (Tanpa Background)!");
           }
           img.src = event.target.result;
         }
@@ -2243,7 +2255,7 @@
                               )}
                             </td>
                             <td className="p-4 text-center">
-                              <button onClick={() => { if(acc.id !== currentUser.id) { const ud = accounts.filter(a=>a.id!==acc.id); setAccounts(ud); syncData("accounts", ud); showToast('Akun Dihapus'); } else { showToast('Gagal: Tidak bisa menghapus akun sendiri'); } }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-full transition">
+                              <button onClick={() => { if(acc.id !== currentUser.id) { requestConfirm("Yakin ingin menghapus akun ini?", () => { const ud = accounts.filter(a=>a.id!==acc.id); setAccounts(ud); syncData("accounts", ud); showToast('Akun Dihapus'); }) } else { showToast('Gagal: Tidak bisa menghapus akun sendiri'); } }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-full transition">
                                 <Trash2 size={16} />
                               </button>
                             </td>
@@ -2305,34 +2317,15 @@
       );
     };
 
-    const BarcodeGenerator = ({ ctx }) => {
-      const { warga, theme, ui } = ctx;
-      const handlePrint = () => window.print();
-
-      return (
-        <div className="space-y-6 animate-fade-in print-content">
-          <h2 className="text-2xl font-bold print-hide">Generate Barcode Rumah</h2>
-          <button onClick={handlePrint} className={`${theme.main} text-white px-4 py-2 rounded print-hide`}>Cetak Barcode</button>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 print:block">
-            {warga.map(w => (
-              <div key={w.id} className={`${ui.card} p-4 rounded-xl text-center print:inline-block print:w-[22%] print:m-[1%] print:border-black print:border print:shadow-none break-inside-avoid`}>
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${w.id}`} alt="QR" className="w-32 h-32 mx-auto mb-2" />
-                <h3 className="font-bold print:text-xs">{w.nama}</h3>
-                <p className="text-sm font-mono mt-1 print:text-[10px]">{w.id}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    };
-
     function App() {
       const [isLoadingDB, setIsLoadingDB] = useState(true);
       const [currentUser, setCurrentUser] = useState(null);
       const [isPublicView, setIsPublicView] = useState(true); 
       const [activeTab, setActiveTab] = useState('dashboard');
       const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+      const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
       const [toastMessage, setToastMessage] = useState(null);
+      const [confirmDialog, setConfirmDialog] = useState(null);
       
       const [warga, setWarga] = useState([]);
       const [jadwal, setJadwal] = useState([]);
@@ -2342,8 +2335,8 @@
       const [dbError, setDbError] = useState(false);
       
       const [settings, setSettings] = useState({ 
-        webName: 'e-Jimpitan RT 01', 
-        tagline: 'Sistem Keamanan & Keuangan Warga',
+        webName: 'e-Jimpitan GHIJL', 
+        tagline: 'Dari Warga, Oleh Warga, Untuk Warga ',
         logoUrl: null, 
         nominalJimpitan: 2000, 
         nominalDenda: 10000,
@@ -2392,8 +2385,8 @@
               
               const rawSettings = dbData.settings || {};
               setSettings({
-                webName: rawSettings.webName || 'e-Jimpitan RT 01',
-                tagline: rawSettings.tagline || 'Sistem Keamanan & Keuangan Warga',
+                webName: rawSettings.webName || 'e-Jimpitan GHIJL',
+                tagline: rawSettings.tagline || 'Dari Warga, Oleh Warga, Untuk Warga',
                 logoUrl: rawSettings.logoUrl || null,
                 nominalJimpitan: Number(rawSettings.nominalJimpitan) || 2000,
                 nominalDenda: Number(rawSettings.nominalDenda) || 10000,
@@ -2403,7 +2396,6 @@
               setWarga(initialWarga); setJadwal(initialJadwal); setAbsensi(initialAbsensi); setJimpitan(initialJimpitan); setAccounts(initialAccounts);
             }
           } catch (err) {
-            console.error("Gagal terhubung ke Database:", err);
             setDbError(true);
             setWarga(initialWarga); setJadwal(initialJadwal); setAbsensi(initialAbsensi); setJimpitan(initialJimpitan); setAccounts(initialAccounts);
           } finally {
@@ -2421,6 +2413,10 @@
       const showToast = (msg) => {
         setToastMessage(msg);
         setTimeout(() => setToastMessage(null), 3000);
+      };
+
+      const requestConfirm = (msg, action) => {
+        setConfirmDialog({ msg, action });
       };
 
       const theme = colorPalettes[themeColor] || colorPalettes['blue'];
@@ -2454,7 +2450,7 @@
       const ctx = {
         warga, setWarga, jadwal, setJadwal, absensi, setAbsensi, jimpitan, setJimpitan, accounts, setAccounts, 
         settings, setSettings, currentUser, setCurrentUser, isPublicView, setIsPublicView, activeTab, setActiveTab, 
-        isDarkMode, setIsDarkMode, themeColor, setThemeColor, showToast, syncData, theme, ui, getWargaName, userRole, 
+        isDarkMode, setIsDarkMode, themeColor, setThemeColor, showToast, requestConfirm, syncData, theme, ui, getWargaName, userRole, 
         isAdmin
       };
 
@@ -2481,35 +2477,42 @@
                   Gagal terhubung ke server database (Google Apps Script). Menggunakan data default (Offline Mode).
                </div>
             )}
-            <header className={`${theme.main} text-white shadow-md sticky top-0 z-50`}>
+            
+            {/* HEADER PUBLIK BERWARNA TEMA DENGAN BINGKAI LOGO PUTIH */}
+            <header className={`${theme.main} text-white shadow-md sticky top-0 z-50 border-b border-transparent`}>
               <div className="max-w-7xl mx-auto px-4">
-                <div className="flex justify-between items-center h-20">
+                <div className="flex justify-between items-center py-3 min-h-[80px]">
                   <div className="flex items-center gap-3 sm:gap-4">
-                    {settings.logoUrl ? (
-                       <img src={settings.logoUrl} alt="Logo" className="h-14 sm:h-16 w-auto max-w-[160px] sm:max-w-[200px] object-contain shrink-0 drop-shadow-md" />
-                    ) : (
-                       <ShieldCheck size={32} className="shrink-0" />
-                    )}
-                    <div className="flex flex-col justify-center">
-                      <h1 className="text-lg sm:text-2xl font-black leading-tight">{settings.webName}</h1>
-                      <span className="text-[10px] sm:text-sm opacity-90 leading-tight mt-0.5">{settings.tagline}</span>
+                    {/* BINGKAI PUTIH UNTUK LOGO AGAR WARNA TIDAK MATI */}
+                    <div className="bg-white p-1.5 sm:p-2 rounded-xl shadow-md flex items-center justify-center shrink-0">
+                      {settings.logoUrl ? (
+                         <img src={settings.logoUrl} alt="Logo" className="h-10 sm:h-12 w-auto max-w-[80px] sm:max-w-[120px] object-contain" />
+                      ) : (
+                         <ShieldCheck size={32} className={theme.text} />
+                      )}
+                    </div>
+                    {/* TEKS RESPONSIP MELIPAT KE BAWAH */}
+                    <div className="flex flex-col justify-center min-w-0 max-w-[200px] sm:max-w-md">
+                      <h1 className="text-base sm:text-xl font-black leading-tight text-white break-words whitespace-normal">{settings.webName}</h1>
+                      <span className="text-[10px] sm:text-xs font-medium opacity-90 leading-snug mt-0.5 text-blue-100 break-words whitespace-normal">{settings.tagline}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <button onClick={() => setIsDarkMode(!isDarkMode)}>
-                      <Sun size={18} />
+                  <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                    <button onClick={() => setIsDarkMode(!isDarkMode)} className="text-white opacity-80 hover:opacity-100 p-2">
+                      <Sun size={20} />
                     </button>
-                    <button onClick={() => setIsPublicView(false)} className="hidden sm:flex items-center gap-2 bg-black/20 px-4 py-2 rounded-lg font-bold">
+                    <button onClick={() => setIsPublicView(false)} className={`hidden sm:flex items-center gap-2 bg-black/20 text-white px-4 py-2 rounded-lg font-bold shadow hover:bg-black/30`}>
                       <LogIn size={18} /> Login Petugas
                     </button>
-                    <button onClick={() => setIsPublicView(false)} className="flex sm:hidden items-center gap-2 bg-black/20 p-2 rounded-lg font-bold">
+                    <button onClick={() => setIsPublicView(false)} className={`flex sm:hidden items-center gap-2 bg-black/20 text-white p-2 rounded-lg font-bold`}>
                       <LogIn size={18} />
                     </button>
                   </div>
                 </div>
               </div>
             </header>
+
             <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
               <div className="mb-8 text-center sm:text-left">
                 <h2 className="text-2xl sm:text-3xl font-black">Portal Transparansi Warga</h2>
@@ -2529,6 +2532,20 @@
             </div>
           )}
           
+          {confirmDialog && (
+            <div className="fixed inset-0 bg-black/60 z-[1000] flex items-center justify-center p-4 animate-fade-in print-hide">
+              <div className={`p-6 rounded-xl shadow-2xl max-w-sm w-full text-center ${ui.card}`}>
+                <AlertCircle size={48} className="mx-auto text-orange-500 mb-4" />
+                <h3 className="text-lg font-bold mb-2">Konfirmasi</h3>
+                <p className="text-sm opacity-80 mb-6">{confirmDialog.msg}</p>
+                <div className="flex gap-3 justify-center">
+                  <button onClick={() => setConfirmDialog(null)} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 rounded-lg font-semibold transition">Batal</button>
+                  <button onClick={() => { confirmDialog.action(); setConfirmDialog(null); }} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold shadow transition">Ya, Lanjutkan</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {dbError && (
              <div className="fixed bottom-5 right-5 z-[998] bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded shadow-lg text-xs font-bold flex items-center gap-2">
                 <AlertCircle size={14} /> Offline Mode Aktif
@@ -2537,16 +2554,24 @@
 
           {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden print-hide" onClick={() => setIsMobileMenuOpen(false)} />}
           
-          <aside className={`fixed inset-y-0 left-0 w-64 shadow-xl z-50 transform transition-transform md:translate-x-0 md:static md:flex-shrink-0 flex flex-col ${ui.sidebar} ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} print-hide`}>
+          {/* LAYOUT SIDEBAR ADMIN */}
+          <aside className={`fixed inset-y-0 left-0 w-64 shadow-xl z-50 transform transition-transform flex flex-col ${ui.sidebar} print-hide 
+            ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
+            ${isDesktopSidebarOpen ? 'md:static md:translate-x-0' : 'md:hidden md:-translate-x-full'} 
+            md:flex-shrink-0`}>
+            
+            {/* SIDEBAR HEADER DENGAN BINGKAI LOGO PUTIH */}
             <div className={`p-5 border-b flex items-center gap-3 ${theme.main} text-white`}>
-              {settings.logoUrl ? (
-                 <img src={settings.logoUrl} alt="Logo" className="h-10 sm:h-12 w-auto max-w-[100px] object-contain shrink-0 drop-shadow-md" />
-              ) : (
-                 <ShieldCheck size={32} className="shrink-0" />
-              )}
-              <div className="flex flex-col justify-center min-w-0">
-                <h1 className="text-lg sm:text-xl font-black truncate leading-tight">{settings.webName}</h1>
-                <span className="text-[10px] sm:text-xs opacity-90 truncate leading-tight mt-0.5">{settings.tagline}</span>
+              <div className="bg-white p-1.5 rounded-xl shadow-md flex items-center justify-center shrink-0">
+                {settings.logoUrl ? (
+                   <img src={settings.logoUrl} alt="Logo" className="h-8 sm:h-10 w-auto max-w-[60px] object-contain" />
+                ) : (
+                   <ShieldCheck size={28} className={theme.text} />
+                )}
+              </div>
+              <div className="flex flex-col justify-center min-w-0 pr-2">
+                <h1 className="text-base font-black break-words leading-tight text-white">{settings.webName}</h1>
+                <span className="text-[10px] opacity-90 break-words whitespace-normal leading-snug mt-0.5 text-blue-100">{settings.tagline}</span>
               </div>
             </div>
             
@@ -2576,13 +2601,23 @@
           </aside>
 
           <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            <header className={`shadow-sm border-b p-4 flex justify-between items-center md:justify-end print-hide ${ui.sidebar}`}>
-              <div className="md:hidden flex items-center gap-4">
-                <button onClick={() => setIsMobileMenuOpen(true)}><Menu size={24} /></button>
+            {/* HEADER ADMIN */}
+            <header className={`shadow-sm border-b p-4 flex justify-between items-center print-hide ${ui.sidebar}`}>
+              <div className="flex items-center gap-3">
+                <button onClick={() => window.innerWidth >= 768 ? setIsDesktopSidebarOpen(!isDesktopSidebarOpen) : setIsMobileMenuOpen(true)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-gray-600 dark:text-gray-300">
+                  <Menu size={24} />
+                </button>
                 <h2 className="text-lg font-bold">{menuItems.find(m => m.id === activeTab)?.label}</h2>
               </div>
-              <div className="hidden md:flex text-sm font-medium">{currentUser?.nama} | {currentUser?.role}</div>
+              <div className="flex items-center gap-2 sm:gap-3 text-right">
+                <div className="hidden sm:block">
+                   <p className="text-sm font-bold leading-none">{currentUser?.nama}</p>
+                   <p className="text-[10px] text-gray-500 uppercase font-semibold">{currentUser?.role}</p>
+                </div>
+                <UserCircle size={32} className="text-gray-400" />
+              </div>
             </header>
+            
             <div className="flex-1 overflow-y-auto p-4 md:p-8">
               {activeTab === 'dashboard' && <Dashboard ctx={ctx} />} 
               {activeTab === 'warga' && <DataWarga ctx={ctx} />} 
