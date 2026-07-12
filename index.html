@@ -2,10 +2,15 @@
   =========================================================================
   FILE: Index.html (FRONTEND USER INTERFACE) - VERSI FINAL STABIL
   - Fix Utama: Mengunci versi CDN Babel (7.23.6) dan React (18.2.0)
-  - Fix (CRITICAL): Menghapus total pengiriman properti `jadwalId` pada objek 
-    Jimpitan di semua form (Scan, Manual, Edit) agar Apps Script berhasil menyimpan.
-  - Fix (CRITICAL): Algoritma Rekap Laporan & Filter kini membaca relasi Jadwal & Jimpitan 
-    menggunakan Tanggal (Date matching), sehingga data tidak lagi hilang saat di-refresh/filter.
+  - Fitur: Edit ID Barcode & Auto-Sort ID Barcode Data Warga
+  - Fitur: Export Excel Rekap Laporan Keuangan
+  - Fix: Sidebar Desktop sekarang bisa di-Hide/Show (Toggle) agar tampilan lebih LUAS.
+  - Fix: Algoritma Euclidean Distance untuk menghapus Background Logo (Bebas Frame Putih 100%).
+  - Fitur: Favicon website ditambahkan.
+  - Fix: Angka nominal grafik tampil utuh (contoh: 316.900) & tidak terpotong.
+  - Fix (Baru): Total Keseluruhan (Denda & Jimpitan) di Laporan Dashboard Warga.
+  - Fix (Baru): Nama Web & Tagline responsif (melipat/break-words), bebas terpotong di HP.
+  - Fix (Baru): Bingkai putih untuk Logo di atas Header/Sidebar berwarna agar logo tidak mati.
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -21,7 +26,7 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- React & ReactDOM -->
+  <!-- React & ReactDOM (Versi Stabil 18.2.0 via CDNJS) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
   
@@ -38,12 +43,15 @@
     window.ambilDataDariSpreadsheet = async function() {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000); 
+        const timeoutId = setTimeout(() => controller.abort(), 10000); 
 
         const response = await fetch(scriptURL, { signal: controller.signal });
         clearTimeout(timeoutId);
         
-        if (!response.ok) return null;
+        if (!response.ok) {
+           console.warn("Server HTTP Error:", response.status);
+           return null;
+        }
 
         const text = await response.text(); 
         try {
@@ -51,9 +59,11 @@
           if (hasil.status === 'success') return hasil.data;
           return null;
         } catch(e) {
+          console.error("Apps Script tidak merespons JSON yang valid.");
           return null;
         }
       } catch (error) {
+        console.error("Gagal mengambil data:", error.message);
         return null;
       }
     };
@@ -124,7 +134,16 @@
   </style>
 </head>
 <body class="bg-gray-50">
-  <div id="root"></div>
+  <div id="root">
+    <!-- Loader Manual HTML sebelum React aktif -->
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: #4B5563;">
+      <svg class="animate-spin" style="width: 48px; height: 48px; color: #3B82F6; margin-bottom: 16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p style="font-weight: bold; font-size: 1.125rem;">Memuat Modul Aplikasi...</p>
+    </div>
+  </div>
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef } = React;
@@ -184,13 +203,17 @@
 
     const initialWarga = [
       { id: 'H-01', nama: 'Budi Santoso', alamat: 'Blok H No 1', hp: '08123456789' },
+      { id: 'H-02', nama: 'Andi Pratama', alamat: 'Blok H No 2', hp: '08123456780' },
       { id: 'G-01', nama: 'Siti Aminah', alamat: 'Blok G No 1', hp: '08129876543' }
     ];
-    const initialJadwal = [];
+    const initialJadwal = [
+      { id: 'J-SEN', hari: 'Senin', periode: 'Bulan Juni - Agustus 2026', koordinatorId: 'H-01', anggotaIds: ['H-02'] }
+    ];
     const initialAbsensi = [];
     const initialJimpitan = [];
     const initialAccounts = [
-      { id: 1, username: 'admin', password: '123', role: 'Admin Jimpitan', nama: 'Superadmin', wargaId: null }
+      { id: 1, username: 'admin', password: '123', role: 'Admin Jimpitan', nama: 'Superadmin', wargaId: null },
+      { id: 2, username: 'budi', password: '123', role: 'Koordinator', nama: 'Budi Santoso', wargaId: 'H-01' }
     ];
 
     const colorPalettes = {
@@ -222,6 +245,7 @@
           <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
               <div className="text-center mb-8">
+                {/* Logo Frame Putih di Form Login */}
                 <div className="bg-white p-2 rounded-xl shadow-md flex items-center justify-center mx-auto w-24 h-24 mb-4">
                   {settings?.logoUrl ? (
                     <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
@@ -381,9 +405,11 @@
                     <div className="w-full flex items-center justify-center text-sm text-gray-400 italic">Belum ada data jimpitan di tahun {chartYear}.</div>
                   ) : (
                     jimpitanChartData.map((data, idx) => {
+                      // Skala maksimal 80% agar sisa 20% ke atas untuk menampung teks angka nominal
                       const heightPercent = Math.max((data.total / (maxJimpitan || 1)) * 80, 2);
                       return (
                         <div key={idx} className="flex flex-col items-center flex-1 group h-full justify-end relative">
+                          {/* Label Angka Nominal Tampil Utuh & Permanen */}
                           <div className="absolute text-[9px] sm:text-[10px] font-bold text-gray-700 dark:text-gray-300 text-center whitespace-nowrap transition-transform" style={{ bottom: `calc(${heightPercent}% + 4px)` }}>
                             {data.total > 0 ? data.total.toLocaleString('id-ID') : '0'}
                           </div>
@@ -502,6 +528,7 @@
                         </td>
                       </tr>
                     ))}
+                    {/* FITUR BARU: TOTAL KESELURUHAN PADA LAPORAN PUBLIK */}
                     <tr className="bg-gray-100 dark:bg-gray-800 font-bold text-sm">
                       <td colSpan="3" className="p-4 text-right uppercase">Total Keseluruhan:</td>
                       <td className="p-4 text-right text-red-600">Rp {grandTotalDendaDashboard.toLocaleString('id-ID')}</td>
@@ -724,20 +751,16 @@
         const monthStr = monthNames[dateObj.getMonth()];
         const yearStr = dateObj.getFullYear().toString();
 
-        const newEntries = Object.keys(absenData).map(wId => {
-          const existing = absensi.find(a => a.tanggal === inputDate && a.jadwalId === selectedJadwalId && a.wargaId === wId);
-          return {
-            id: existing ? existing.id : Date.now() + Math.floor(Math.random() * 10000),
-            tanggal: inputDate,
-            bulan: monthStr,
-            tahun: yearStr,
-            jadwalId: selectedJadwalId, 
-            wargaId: wId,
-            status: absenData[wId].status, 
-            keterangan: absenData[wId].keterangan,
-            isLunas: existing ? existing.isLunas : false
-          };
-        });
+        const newEntries = Object.keys(absenData).map(wId => ({
+          id: Date.now() + Math.random(),
+          tanggal: inputDate,
+          bulan: monthStr,
+          tahun: yearStr,
+          jadwalId: selectedJadwalId, 
+          wargaId: wId,
+          status: absenData[wId].status, 
+          keterangan: absenData[wId].keterangan
+        }));
         
         const filteredAbsensi = absensi.filter(a => !(a.tanggal === inputDate && a.jadwalId === selectedJadwalId));
         const updatedAbsensi = [...newEntries, ...filteredAbsensi];
@@ -745,18 +768,17 @@
         setAbsensi(updatedAbsensi);
         syncData("absensi", updatedAbsensi);
         
-        if (totalJimpitanManual !== '' && Number(totalJimpitanManual) >= 0 && isAdmin) {
-            // FIX: Hilangkan pencarian jadwalId untuk jimpitan
-            const existingManual = jimpitan.find(j => j.tanggal === inputDate && j.wargaId === 'KAS-UMUM');
+        if (totalJimpitanManual && Number(totalJimpitanManual) >= 0 && isAdmin) {
             const newJimpitanManual = {
-                id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000),
+                id: Date.now() + Math.random(),
                 tanggal: inputDate,
                 bulan: monthStr,
                 tahun: yearStr,
+                jadwalId: selectedJadwalId,
                 wargaId: 'KAS-UMUM',
                 nominal: Number(totalJimpitanManual)
             };
-            const filteredJimpitan = jimpitan.filter(j => !(j.tanggal === inputDate && j.wargaId === 'KAS-UMUM'));
+            const filteredJimpitan = jimpitan.filter(j => !(j.tanggal === inputDate && j.jadwalId === selectedJadwalId && j.wargaId === 'KAS-UMUM'));
             const updatedJimpitan = [newJimpitanManual, ...filteredJimpitan];
             setJimpitan(updatedJimpitan);
             syncData("jimpitan", updatedJimpitan);
@@ -1172,7 +1194,7 @@
       const scannerRef = useRef(null);
 
       const checkAlreadyPaid = (wId) => {
-        return jimpitan.some(j => j.tanggal === inputDate && j.wargaId === wId);
+        return jimpitan.some(j => j.tanggal === inputDate && (j.jadwalId === selectedJadwalId || (!selectedJadwalId && j.jadwalId === 'Tanpa Regu')) && j.wargaId === wId);
       }
 
       const startCamera = () => {
@@ -1198,7 +1220,7 @@
               const w = warga.find(x => x.id === decodedText.trim().toUpperCase());
               if (w) {
                 if (checkAlreadyPaid(w.id)) {
-                   showToast(`Peringatan: ID Barcode atau Barcode sudah ter-scan!`);
+                   showToast(`Warga ${w.nama} sudah setor jimpitan hari ini!`);
                    stopCamera();
                 } else {
                    setScannedWarga(w);
@@ -1240,7 +1262,7 @@
         const w = warga.find(x => x.id === manualId.toUpperCase());
         if (w) {
           if (checkAlreadyPaid(w.id)) {
-            showToast(`Peringatan: ID Barcode atau Barcode sudah ter-scan!`);
+            showToast(`Warga ${w.nama} sudah setor jimpitan hari ini!`);
           } else {
             setScannedWarga(w); 
           }
@@ -1253,13 +1275,6 @@
         if (!scannedWarga) return;
         if (!inputDate) return showToast("Tanggal jimpitan belum dipilih!");
         
-        if (checkAlreadyPaid(scannedWarga.id)) {
-            showToast(`Peringatan: ID Barcode atau Barcode sudah ter-scan!`);
-            setScannedWarga(null);
-            setManualId('');
-            return;
-        }
-        
         const dateParts = inputDate.split('-');
         const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
         const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -1267,10 +1282,11 @@
         const yearStr = dateObj.getFullYear().toString();
 
         const newEntry = { 
-          id: Date.now() + Math.floor(Math.random() * 10000), 
+          id: Date.now(), 
           tanggal: inputDate, 
           bulan: monthStr, 
           tahun: yearStr,
+          jadwalId: selectedJadwalId || 'Tanpa Regu',
           wargaId: scannedWarga.id, 
           nominal: Number(nom) 
         };
@@ -1403,25 +1419,13 @@
         return activePeriod;
       }, [isAdmin, filterPeriode, activePeriod]);
 
-      // FIX CRITICAL: Filter jimpitan tidak lagi mencari `jadwalId` yang memang sudah tidak ada.
-      // Kita inferensi relasinya melalui tanggal absensi atau pencocokan hari ke Jadwal.
       const filteredJimpitan = jimpitan.filter(j => {
         const matchBulan = filterBulan === 'Semua' || j.bulan === filterBulan;
         const matchTahun = filterTahun === 'Semua' || j.tahun === filterTahun;
         let matchPeriode = true;
-        
         if (appliedFilterPeriode !== 'Semua') {
-           const terkaitAbsen = absensi.find(a => a.tanggal === j.tanggal);
-           if (terkaitAbsen) {
-               const jw = jadwal.find(x => x.id === terkaitAbsen.jadwalId);
-               matchPeriode = jw && jw.periode === appliedFilterPeriode;
-           } else {
-               const d = new Date(j.tanggal);
-               const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-               const namaHari = days[d.getDay()];
-               const jw = jadwal.find(x => x.hari === namaHari && x.periode === appliedFilterPeriode);
-               matchPeriode = jw ? true : false;
-           }
+           const jw = jadwal.find(x => x.id === j.jadwalId);
+           matchPeriode = jw && jw.periode === appliedFilterPeriode;
         }
         return matchBulan && matchTahun && matchPeriode;
       });
@@ -1473,49 +1477,34 @@
       const rekapHarian = useMemo(() => {
         const harianMap = {};
         
-        // 1. Petakan tabel absensi lebih dulu sebagai template hari itu
-        filteredAbsensi.forEach(a => {
-            const key = `${a.tanggal}_${a.jadwalId || 'Tanpa Regu'}`;
-            if (!harianMap[key]) {
-              const dateParts = a.tanggal.split('-');
-              const d = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-              const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-              harianMap[key] = { tanggal: a.tanggal, hariInput: days[d.getDay()], jadwalId: a.jadwalId, total: 0, anggotaAlpa: [] };
-            }
-            if (a.status !== 'Hadir') {
-              harianMap[key].anggotaAlpa.push({ nama: getWargaName(a.wargaId), status: a.status, isLunas: a.isLunas });
-            }
+        filteredJimpitan.forEach(t => {
+          const key = `${t.tanggal}_${t.jadwalId || 'Tanpa Regu'}`;
+          if (!harianMap[key]) {
+            const dateParts = t.tanggal.split('-');
+            const d = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+            const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+            harianMap[key] = { tanggal: t.tanggal, hariInput: days[d.getDay()], jadwalId: t.jadwalId, total: 0, anggotaAlpa: [] };
+          }
+          harianMap[key].total += (Number(t.nominal) || 0);
         });
 
-        // 2. Petakan Jimpitan, inferensi regu yang bertugas berdasarkan tanggal
-        filteredJimpitan.forEach(t => {
-            const absenRegu = filteredAbsensi.find(a => a.tanggal === t.tanggal);
-            let presumedJadwalId = absenRegu ? absenRegu.jadwalId : null;
-
-            if (!presumedJadwalId) {
-                const dateParts = t.tanggal.split('-');
+        filteredAbsensi.forEach(a => {
+           if (a.status !== 'Hadir') {
+              const key = `${a.tanggal}_${a.jadwalId || 'Tanpa Regu'}`;
+              if (!harianMap[key]) {
+                const dateParts = a.tanggal.split('-');
                 const d = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
                 const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-                const namaHari = days[d.getDay()];
-                const jw = jadwal.find(x => x.hari === namaHari && (appliedFilterPeriode === 'Semua' || x.periode === appliedFilterPeriode));
-                presumedJadwalId = jw ? jw.id : 'Tanpa Regu';
-            }
-
-            const key = `${t.tanggal}_${presumedJadwalId}`;
-
-            if (!harianMap[key]) {
-              const dateParts = t.tanggal.split('-');
-              const d = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-              const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-              harianMap[key] = { tanggal: t.tanggal, hariInput: days[d.getDay()], jadwalId: presumedJadwalId, total: 0, anggotaAlpa: [] };
-            }
-            harianMap[key].total += (Number(t.nominal) || 0);
+                harianMap[key] = { tanggal: a.tanggal, hariInput: days[d.getDay()], jadwalId: a.jadwalId, total: 0, anggotaAlpa: [] };
+              }
+              harianMap[key].anggotaAlpa.push({ nama: getWargaName(a.wargaId), status: a.status, isLunas: a.isLunas });
+           }
         });
         
         return Object.values(harianMap)
           .filter(r => filterHari === 'Semua' || (r.hariInput && r.hariInput.toLowerCase() === filterHari.toLowerCase()))
           .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
-      }, [filteredJimpitan, filteredAbsensi, getWargaName, filterHari, jadwal, appliedFilterPeriode]);
+      }, [filteredJimpitan, filteredAbsensi, getWargaName, filterHari]);
 
       const handlePrint = () => window.print();
 
@@ -1556,11 +1545,11 @@
         const jw = jadwal.find(x => x.id === jadwalId);
         const reguMembers = jw ? [jw.koordinatorId, ...jw.anggotaIds] : [];
 
-        const existingManualJimpitan = jimpitan.find(j => j.tanggal === tanggal && j.wargaId === 'KAS-UMUM');
+        const existingManualJimpitan = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === 'KAS-UMUM');
         setManualJimpitanEdit(existingManualJimpitan ? existingManualJimpitan.nominal : '');
 
         const formData = warga.map(w => {
-           const existingJimpitan = jimpitan.find(j => j.tanggal === tanggal && j.wargaId === w.id);
+           const existingJimpitan = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === w.id);
            const existingAbsen = absensi.find(a => a.tanggal === tanggal && a.jadwalId === jadwalId && a.wargaId === w.id);
            const isMember = reguMembers.includes(w.id);
 
@@ -1588,54 +1577,34 @@
         const monthStr = monthNames[dateObj.getMonth()];
         const yearStr = dateObj.getFullYear().toString();
 
-        const editedWargaIds = editFormData.map(d => d.wargaId);
-        editedWargaIds.push('KAS-UMUM');
-
-        const newJimpitan = jimpitan.filter(j => !(j.tanggal === tanggal && editedWargaIds.includes(j.wargaId)));
+        const newJimpitan = jimpitan.filter(j => !(j.tanggal === tanggal && j.jadwalId === jadwalId));
         const newAbsensi = absensi.filter(a => !(a.tanggal === tanggal && a.jadwalId === jadwalId));
         
         const editedJimpitan = [];
         const editedAbsensi = [];
         
         editFormData.forEach(d => {
-           const nomString = d.nominal !== undefined && d.nominal !== null ? String(d.nominal).trim() : '';
-           const existingJ = jimpitan.find(j => j.tanggal === tanggal && j.wargaId === d.wargaId);
-           
-           if (nomString !== '' && Number(nomString) >= 0) {
+           if (d.nominal && Number(d.nominal) > 0 || d.nominal === '0') {
              editedJimpitan.push({
-                 id: existingJ ? existingJ.id : Date.now() + Math.floor(Math.random() * 10000),
+                 id: Date.now() + Math.random(),
                  tanggal, bulan: monthStr, tahun: yearStr,
-                 wargaId: d.wargaId, nominal: Number(nomString)
-             });
-           } else if (existingJ) {
-             // Soft-delete untuk menimpa sheet
-             editedJimpitan.push({
-                 ...existingJ, nominal: 0
+                 jadwalId, wargaId: d.wargaId, nominal: Number(d.nominal)
              });
            }
-           
            if (d.isMember) {
-             const existingA = absensi.find(a => a.tanggal === tanggal && a.jadwalId === jadwalId && a.wargaId === d.wargaId);
              editedAbsensi.push({
-                 id: existingA ? existingA.id : Date.now() + Math.floor(Math.random() * 10000),
+                 id: Date.now() + Math.random(),
                  tanggal, bulan: monthStr, tahun: yearStr,
                  jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
              });
            }
         });
 
-        const manualKasString = manualJimpitanEdit !== undefined && manualJimpitanEdit !== null ? String(manualJimpitanEdit).trim() : '';
-        const existingManual = jimpitan.find(j => j.tanggal === tanggal && j.wargaId === 'KAS-UMUM');
-        
-        if (manualKasString !== '' && Number(manualKasString) >= 0 && isAdmin) {
+        if (manualJimpitanEdit !== '' && Number(manualJimpitanEdit) >= 0 && isAdmin) {
             editedJimpitan.push({
-                id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000),
+                id: Date.now() + Math.random(),
                 tanggal, bulan: monthStr, tahun: yearStr,
-                wargaId: 'KAS-UMUM', nominal: Number(manualKasString)
-            });
-        } else if (existingManual && manualKasString === '' && isAdmin) {
-            editedJimpitan.push({
-                ...existingManual, nominal: 0
+                jadwalId, wargaId: 'KAS-UMUM', nominal: Number(manualJimpitanEdit)
             });
         }
         
@@ -1653,10 +1622,7 @@
 
       const handleHapusLaporan = () => {
          requestConfirm("Yakin ingin menghapus seluruh laporan (Absen & Jimpitan) pada tanggal dan regu ini?", () => {
-             const jw = jadwal.find(x => x.id === editModal.jadwalId);
-             const reguMembers = jw ? [jw.koordinatorId, ...jw.anggotaIds] : [];
-             
-             const newJimpitan = jimpitan.filter(j => !(j.tanggal === editModal.tanggal && (reguMembers.includes(j.wargaId) || j.wargaId === 'KAS-UMUM')));
+             const newJimpitan = jimpitan.filter(j => !(j.tanggal === editModal.tanggal && j.jadwalId === editModal.jadwalId));
              const newAbsensi = absensi.filter(a => !(a.tanggal === editModal.tanggal && a.jadwalId === editModal.jadwalId));
              
              setJimpitan(newJimpitan);
@@ -2049,38 +2015,6 @@
       );
     };
 
-    const BarcodeGenerator = ({ ctx }) => {
-      const { warga, theme, ui, settings } = ctx;
-      return (
-        <div className="space-y-6 animate-fade-in print-content">
-          <div className="flex justify-between items-center print-hide">
-            <div>
-              <h2 className="text-2xl font-bold">Barcode Kotak Jimpitan</h2>
-              <p className="text-sm text-gray-500">Cetak dan tempel barcode ini di kotak jimpitan rumah warga.</p>
-            </div>
-            <button onClick={() => window.print()} className={`${theme.main} text-white px-4 py-2 rounded shadow flex items-center gap-2`}>
-              <FileDown size={18} /> Cetak Barcode
-            </button>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 print:grid-cols-4">
-            {warga.map((w, idx) => (
-              <div key={idx} className={`${ui.card} p-4 rounded-xl flex flex-col items-center text-center print:border-black print:shadow-none break-inside-avoid`}>
-                <h4 className="font-bold text-lg">{w.id}</h4>
-                <div className="w-24 h-24 bg-white border-2 border-black flex items-center justify-center my-2 p-1 relative">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <QrCode size={64} className="text-black opacity-20" />
-                  </div>
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${w.id}`} alt={`QR ${w.id}`} className="w-full h-full relative z-10" crossOrigin="anonymous" onError={(e) => e.target.style.display='none'}/>
-                </div>
-                <p className="text-sm font-semibold truncate w-full">{w.nama}</p>
-                <p className="text-xs text-gray-500 truncate w-full">{settings.webName}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    };
-
     const Pengaturan = ({ ctx }) => {
       const { isAdmin, currentUser, setCurrentUser, accounts, setAccounts, settings, setSettings, warga, syncData, showToast, requestConfirm, themeColor, setThemeColor, isDarkMode, setIsDarkMode, theme, ui, jadwal } = ctx;
       
@@ -2146,15 +2080,18 @@
             try {
                const imageData = ctxCanvas.getImageData(0, 0, width, height);
                const data = imageData.data;
+               // ALGORITMA LEBIH KUAT: Hapus background putih & abu terang (Anti Frame Putih)
                for (let i = 0; i < data.length; i += 4) {
                  const r = data[i];
                  const g = data[i + 1];
                  const b = data[i + 2];
+                 
                  const dist = Math.sqrt(Math.pow(255 - r, 2) + Math.pow(255 - g, 2) + Math.pow(255 - b, 2));
+                 
                  if (dist < 50) {
-                    data[i + 3] = 0; 
+                    data[i + 3] = 0; // Sangat dekat putih, 100% hapus
                  } else if (dist < 100) {
-                    data[i + 3] = Math.floor(((dist - 50) / 50) * 255); 
+                    data[i + 3] = Math.floor(((dist - 50) / 50) * 255); // Edge smoothing (Anti Aliasing)
                  }
                }
                ctxCanvas.putImageData(imageData, 0, 0);
@@ -2470,65 +2407,7 @@
       }, []);
 
       const syncData = async (key, dataArray) => {
-         return new Promise((resolve) => {
-             window.syncQueuePromise = (window.syncQueuePromise || Promise.resolve())
-                 .then(async () => {
-                     const delay = Math.floor(Math.random() * 1000) + 500;
-                     await new Promise(r => setTimeout(r, delay));
-
-                     try {
-                         const dbData = await window.ambilDataDariSpreadsheet();
-                         let finalData = dataArray;
-
-                         if (dbData && dbData[key]) {
-                             const serverData = dbData[key];
-
-                             if (dataArray.length >= serverData.length) {
-                                 const map = new Map();
-                                 
-                                 const getUniqueKey = (item) => {
-                                     if (!item) return Math.random().toString();
-                                     if (key === 'jimpitan' && item.tanggal && item.wargaId) {
-                                         return `JMP_${item.tanggal}_${item.wargaId}`;
-                                     }
-                                     if (key === 'absensi' && item.tanggal && item.wargaId) {
-                                         return `ABS_${item.tanggal}_${item.jadwalId}_${item.wargaId}`;
-                                     }
-                                     return item.id ? item.id.toString() : Math.random().toString();
-                                 };
-
-                                 serverData.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
-                                 dataArray.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
-                                 
-                                 finalData = Array.from(map.values());
-                                 
-                                 if (key === 'jimpitan' || key === 'absensi') {
-                                     finalData.sort((a, b) => b.id - a.id);
-                                 } else if (key === 'warga' || key === 'jadwal') {
-                                     finalData.sort((a, b) => String(a.id).localeCompare(String(b.id)));
-                                 }
-                             }
-                         }
-
-                         const isSuccess = await window.simpanDataKeSpreadsheet(key, finalData);
-                         
-                         if (isSuccess && finalData.length !== dataArray.length) {
-                             if (key === 'jimpitan') setJimpitan(finalData);
-                             if (key === 'absensi') setAbsensi(finalData);
-                             if (key === 'warga') setWarga(finalData);
-                             if (key === 'jadwal') setJadwal(finalData);
-                         }
-
-                         resolve(isSuccess);
-                     } catch (error) {
-                         const fallbackSuccess = await window.simpanDataKeSpreadsheet(key, dataArray);
-                         resolve(fallbackSuccess);
-                     }
-                 })
-                 .catch(err => {
-                     resolve(false);
-                 });
-         });
+         return await window.simpanDataKeSpreadsheet(key, dataArray);
       };
 
       const showToast = (msg) => {
@@ -2599,10 +2478,12 @@
                </div>
             )}
             
+            {/* HEADER PUBLIK BERWARNA TEMA DENGAN BINGKAI LOGO PUTIH */}
             <header className={`${theme.main} text-white shadow-md sticky top-0 z-50 border-b border-transparent`}>
               <div className="max-w-7xl mx-auto px-4">
                 <div className="flex justify-between items-center py-3 min-h-[80px]">
                   <div className="flex items-center gap-3 sm:gap-4">
+                    {/* BINGKAI PUTIH UNTUK LOGO AGAR WARNA TIDAK MATI */}
                     <div className="bg-white p-1.5 sm:p-2 rounded-xl shadow-md flex items-center justify-center shrink-0">
                       {settings.logoUrl ? (
                          <img src={settings.logoUrl} alt="Logo" className="h-10 sm:h-12 w-auto max-w-[80px] sm:max-w-[120px] object-contain" />
@@ -2610,6 +2491,7 @@
                          <ShieldCheck size={32} className={theme.text} />
                       )}
                     </div>
+                    {/* TEKS RESPONSIP MELIPAT KE BAWAH */}
                     <div className="flex flex-col justify-center min-w-0 max-w-[200px] sm:max-w-md">
                       <h1 className="text-base sm:text-xl font-black leading-tight text-white break-words whitespace-normal">{settings.webName}</h1>
                       <span className="text-[10px] sm:text-xs font-medium opacity-90 leading-snug mt-0.5 text-blue-100 break-words whitespace-normal">{settings.tagline}</span>
@@ -2672,11 +2554,13 @@
 
           {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden print-hide" onClick={() => setIsMobileMenuOpen(false)} />}
           
+          {/* LAYOUT SIDEBAR ADMIN */}
           <aside className={`fixed inset-y-0 left-0 w-64 shadow-xl z-50 transform transition-transform flex flex-col ${ui.sidebar} print-hide 
             ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
             ${isDesktopSidebarOpen ? 'md:static md:translate-x-0' : 'md:hidden md:-translate-x-full'} 
             md:flex-shrink-0`}>
             
+            {/* SIDEBAR HEADER DENGAN BINGKAI LOGO PUTIH */}
             <div className={`p-5 border-b flex items-center gap-3 ${theme.main} text-white`}>
               <div className="bg-white p-1.5 rounded-xl shadow-md flex items-center justify-center shrink-0">
                 {settings.logoUrl ? (
@@ -2717,6 +2601,7 @@
           </aside>
 
           <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {/* HEADER ADMIN */}
             <header className={`shadow-sm border-b p-4 flex justify-between items-center print-hide ${ui.sidebar}`}>
               <div className="flex items-center gap-3">
                 <button onClick={() => window.innerWidth >= 768 ? setIsDesktopSidebarOpen(!isDesktopSidebarOpen) : setIsMobileMenuOpen(true)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-gray-600 dark:text-gray-300">
