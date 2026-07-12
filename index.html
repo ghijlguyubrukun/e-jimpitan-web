@@ -11,6 +11,8 @@
   - Fix (Baru): Total Keseluruhan (Denda & Jimpitan) di Laporan Dashboard Warga.
   - Fix (Baru): Nama Web & Tagline responsif (melipat/break-words), bebas terpotong di HP.
   - Fix (Baru): Bingkai putih untuk Logo di atas Header/Sidebar berwarna agar logo tidak mati.
+  - Fix (Update Concurrency): Algoritma Jitter Delay & Merge untuk Scan Barcode Bersamaan.
+  - Fix (Update Duplicate Scan): Peringatan ganda dan filter ketat pada Scan Barcode.
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -43,7 +45,8 @@
     window.ambilDataDariSpreadsheet = async function() {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); 
+        // Memperpanjang batas waktu tunggu (timeout) menjadi 45 detik agar Google Script tidak terputus
+        const timeoutId = setTimeout(() => controller.abort(), 45000); 
 
         const response = await fetch(scriptURL, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -1194,8 +1197,9 @@
       const [isCameraActive, setIsCameraActive] = useState(false);
       const scannerRef = useRef(null);
 
+      // FUNGSI INI TELAH DIPERBAIKI SECARA KESELURUHAN (Hanya cek ID & Tanggal, tidak peduli regu apa)
       const checkAlreadyPaid = (wId) => {
-        return jimpitan.some(j => j.tanggal === inputDate && (j.jadwalId === selectedJadwalId || (!selectedJadwalId && j.jadwalId === 'Tanpa Regu')) && j.wargaId === wId);
+        return jimpitan.some(j => j.tanggal === inputDate && j.wargaId === wId);
       }
 
       const startCamera = () => {
@@ -1220,8 +1224,9 @@
             (decodedText) => {
               const w = warga.find(x => x.id === decodedText.trim().toUpperCase());
               if (w) {
+                // PERINGATAN SCAN GANDA DI SINI
                 if (checkAlreadyPaid(w.id)) {
-                   showToast(`Warga ${w.nama} sudah setor jimpitan hari ini!`);
+                   showToast('Peringatan: ID Barcode atau Barcode sudah ter-scan!');
                    stopCamera();
                 } else {
                    setScannedWarga(w);
@@ -1262,8 +1267,9 @@
         e.preventDefault();
         const w = warga.find(x => x.id === manualId.toUpperCase());
         if (w) {
+          // PERINGATAN MANUAL INPUT GANDA DI SINI
           if (checkAlreadyPaid(w.id)) {
-            showToast(`Warga ${w.nama} sudah setor jimpitan hari ini!`);
+            showToast('Peringatan: ID Barcode atau Barcode sudah ter-scan!');
           } else {
             setScannedWarga(w); 
           }
@@ -1276,6 +1282,14 @@
         if (!scannedWarga) return;
         if (!inputDate) return showToast("Tanggal jimpitan belum dipilih!");
         
+        // LAPISAN KEAMANAN TERAKHIR: Mencegah error duplikasi saat tombol di-klik berulang (double-click)
+        if (checkAlreadyPaid(scannedWarga.id)) {
+            showToast('Peringatan: ID Barcode atau Barcode sudah ter-scan!');
+            setScannedWarga(null);
+            setManualId('');
+            return;
+        }
+
         const dateParts = inputDate.split('-');
         const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
         const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -2016,6 +2030,38 @@
       );
     };
 
+    const BarcodeGenerator = ({ ctx }) => {
+      const { warga, theme, ui, settings } = ctx;
+      return (
+        <div className="space-y-6 animate-fade-in print-content">
+          <div className="flex justify-between items-center print-hide">
+            <div>
+              <h2 className="text-2xl font-bold">Barcode Kotak Jimpitan</h2>
+              <p className="text-sm text-gray-500">Cetak dan tempel barcode ini di kotak jimpitan rumah warga.</p>
+            </div>
+            <button onClick={() => window.print()} className={`${theme.main} text-white px-4 py-2 rounded shadow flex items-center gap-2`}>
+              <FileDown size={18} /> Cetak Barcode
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 print:grid-cols-4">
+            {warga.map((w, idx) => (
+              <div key={idx} className={`${ui.card} p-4 rounded-xl flex flex-col items-center text-center print:border-black print:shadow-none break-inside-avoid`}>
+                <h4 className="font-bold text-lg">{w.id}</h4>
+                <div className="w-24 h-24 bg-white border-2 border-black flex items-center justify-center my-2 p-1 relative">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <QrCode size={64} className="text-black opacity-20" />
+                  </div>
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${w.id}`} alt={`QR ${w.id}`} className="w-full h-full relative z-10" crossOrigin="anonymous" onError={(e) => e.target.style.display='none'}/>
+                </div>
+                <p className="text-sm font-semibold truncate w-full">{w.nama}</p>
+                <p className="text-xs text-gray-500 truncate w-full">{settings.webName}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
     const Pengaturan = ({ ctx }) => {
       const { isAdmin, currentUser, setCurrentUser, accounts, setAccounts, settings, setSettings, warga, syncData, showToast, requestConfirm, themeColor, setThemeColor, isDarkMode, setIsDarkMode, theme, ui, jadwal } = ctx;
       
@@ -2407,9 +2453,62 @@
         muatData();
       }, []);
 
+
+      // --- FITUR BARU: SINKRONISASI ANTI-BENTROK (CONCURRENCY) ---
       const syncData = async (key, dataArray) => {
-         return await window.simpanDataKeSpreadsheet(key, dataArray);
+         // 1. Jeda Waktu Acak (Jitter): 0.5 hingga 2 detik
+         const delay = Math.floor(Math.random() * 1500) + 500;
+         await new Promise(resolve => setTimeout(resolve, delay));
+
+         try {
+             // 2. Ambil data terbaru dari Spreadsheet sebelum menimpa database
+             const dbData = await window.ambilDataDariSpreadsheet();
+             let finalData = dataArray;
+
+             // 3. Proses Merge (Gabungkan Data)
+             if (dbData && dbData[key]) {
+                 const serverData = dbData[key];
+
+                 if (dataArray.length >= serverData.length) {
+                     const map = new Map();
+                     
+                     // Masukkan data dari server terlebih dahulu (Data dari HP lain)
+                     serverData.forEach(item => { if (item && item.id) map.set(item.id.toString(), item); });
+                     
+                     // Timpa / Tambahkan dengan data lokal (Data dari HP ini)
+                     dataArray.forEach(item => { if (item && item.id) map.set(item.id.toString(), item); });
+                     
+                     finalData = Array.from(map.values());
+                     
+                     // Urutkan kembali
+                     if (key === 'jimpitan' || key === 'absensi') {
+                         finalData.sort((a, b) => b.id - a.id);
+                     } else if (key === 'warga' || key === 'jadwal') {
+                         finalData.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+                     }
+                 }
+             }
+
+             // 4. Simpan data yang sudah digabungkan secara utuh
+             const isSuccess = await window.simpanDataKeSpreadsheet(key, finalData);
+             
+             // 5. Update tampilan di HP ini jika mendapat tambahan dari HP lain
+             if (isSuccess && finalData.length > dataArray.length) {
+                 if (key === 'jimpitan') setJimpitan(finalData);
+                 if (key === 'absensi') setAbsensi(finalData);
+                 if (key === 'warga') setWarga(finalData);
+                 if (key === 'jadwal') setJadwal(finalData);
+             }
+
+             return isSuccess;
+         } catch (error) {
+             console.error("Gagal melakukan merge sinkronisasi:", error);
+             // Fallback: Jika ada error jaringan saat merge, tetap paksakan simpan data HP ini
+             return await window.simpanDataKeSpreadsheet(key, dataArray);
+         }
       };
+      // -------------------------------------------------------------
+
 
       const showToast = (msg) => {
         setToastMessage(msg);
