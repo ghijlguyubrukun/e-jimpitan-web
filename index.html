@@ -11,10 +11,10 @@
   - Fix: Total Keseluruhan (Denda & Jimpitan) di Laporan Dashboard Warga.
   - Fix: Nama Web & Tagline responsif (melipat/break-words), bebas terpotong di HP.
   - Fix: Bingkai putih untuk Logo di atas Header/Sidebar berwarna agar logo tidak mati.
-  - Fix (Update): Queue Promise & Merge Array untuk Mencegah Race Condition di Google Sheets.
+  - Fix (Update): Queue Promise & Merge Array dengan Kunci Komposit (Anti-Double Input).
   - Fix (Update): Peringatan Barcode Ganda & Proteksi Double Click Setoran.
-  - Fix (Penting): Mempertahankan ID saat Edit Laporan untuk mencegah Double Input Spreadsheet.
-  - Fix (Penting): Menambahkan Soft-Delete (0) saat nominal dihapus manual agar sinkron ke Server.
+  - Fix (Penting): Sinkronisasi Absolut. Edit Manual & Hapus Nominal 100% menimpa Spreadsheet.
+  - Fix (Penting): Menghapus loader bawaan HTML agar tulisan tidak tembus ke bawah aplikasi.
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -138,16 +138,8 @@
   </style>
 </head>
 <body class="bg-gray-50">
-  <div id="root">
-    <!-- Loader Manual HTML sebelum React aktif -->
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: #4B5563;">
-      <svg class="animate-spin" style="width: 48px; height: 48px; color: #3B82F6; margin-bottom: 16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      <p style="font-weight: bold; font-size: 1.125rem;">Memuat Modul Aplikasi...</p>
-    </div>
-  </div>
+  <!-- FIX: Mengosongkan kerangka div root agar tulisan loading tidak tembus saat di scroll -->
+  <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef } = React;
@@ -257,11 +249,10 @@
                   )}
                 </div>
                 <h1 className="text-2xl font-black">{settings?.webName || 'e-Jimpitan'}</h1>
-                <p className="text-sm text-gray-500 mt-1">{settings?.tagline || 'Dari Warga, Oleh Warga, Untuk Warga'}</p>
+                <p className="text-sm text-gray-500 mt-1">{settings?.tagline || 'Sistem Keuangan Warga'}</p>
               </div>
               <form onSubmit={handleLogin} className="space-y-5">
                 {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm font-semibold animate-fade-in">{error}</div>}
-                
                 <div>
                   <label className="block text-sm font-bold mb-2">Username</label>
                   <input type="text" required className={`w-full p-3 rounded-lg border ${ui?.input || ''}`} value={username} onChange={e => setUsername(e.target.value)} placeholder="Masukkan username..." />
@@ -755,7 +746,7 @@
         const newEntries = Object.keys(absenData).map(wId => {
           const existing = absensi.find(a => a.tanggal === inputDate && a.jadwalId === selectedJadwalId && a.wargaId === wId);
           return {
-            id: existing ? existing.id : Date.now() + Math.random(),
+            id: existing ? existing.id : Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
             tanggal: inputDate,
             bulan: monthStr,
             tahun: yearStr,
@@ -776,7 +767,7 @@
         if (totalJimpitanManual !== '' && Number(totalJimpitanManual) >= 0 && isAdmin) {
             const existingManual = jimpitan.find(j => j.tanggal === inputDate && j.jadwalId === selectedJadwalId && j.wargaId === 'KAS-UMUM');
             const newJimpitanManual = {
-                id: existingManual ? existingManual.id : Date.now() + Math.random(),
+                id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
                 tanggal: inputDate,
                 bulan: monthStr,
                 tahun: yearStr,
@@ -1295,7 +1286,7 @@
         const yearStr = dateObj.getFullYear().toString();
 
         const newEntry = { 
-          id: Date.now(), 
+          id: Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
           tanggal: inputDate, 
           bulan: monthStr, 
           tahun: yearStr,
@@ -1602,12 +1593,11 @@
            
            if (nomVal !== '' && Number(nomVal) >= 0) {
              editedJimpitan.push({
-                 id: existingJ ? existingJ.id : Date.now() + Math.floor(Math.random() * 10000), // Mencegah ID baru agar tidak Double
+                 id: existingJ ? existingJ.id : Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
                  tanggal, bulan: monthStr, tahun: yearStr,
                  jadwalId, wargaId: d.wargaId, nominal: Number(nomVal)
              });
            } else if (existingJ) {
-             // Jika input dikosongkan (hapus), kirim nilai 0 agar Server menimpa datanya (Soft-Delete)
              editedJimpitan.push({
                  ...existingJ, nominal: 0
              });
@@ -1616,7 +1606,7 @@
            if (d.isMember) {
              const existingA = absensi.find(a => a.tanggal === tanggal && a.jadwalId === jadwalId && a.wargaId === d.wargaId);
              editedAbsensi.push({
-                 id: existingA ? existingA.id : Date.now() + Math.floor(Math.random() * 10000), // Mencegah ID baru agar tidak Double
+                 id: existingA ? existingA.id : Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
                  tanggal, bulan: monthStr, tahun: yearStr,
                  jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
              });
@@ -1628,12 +1618,11 @@
         
         if (manualKasVal !== '' && Number(manualKasVal) >= 0 && isAdmin) {
             editedJimpitan.push({
-                id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000), // Mencegah ID baru agar tidak Double
+                id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
                 tanggal, bulan: monthStr, tahun: yearStr,
                 jadwalId, wargaId: 'KAS-UMUM', nominal: Number(manualKasVal)
             });
         } else if (existingManual && manualKasVal === '' && isAdmin) {
-            // Jika dikosongkan (hapus), kirim nilai 0 (Soft-Delete)
             editedJimpitan.push({
                 ...existingManual, nominal: 0
             });
@@ -2466,29 +2455,53 @@
         muatData();
       }, []);
 
+      // --- FITUR BARU: SINKRONISASI ANTI-BENTROK (CONCURRENCY) DENGAN PROMISE QUEUE ---
       const syncData = async (key, dataArray) => {
          return new Promise((resolve) => {
+             // Membuat Antrean (Queue)
              window.syncQueuePromise = (window.syncQueuePromise || Promise.resolve())
                  .then(async () => {
+                     // 1. Jeda Waktu Acak (Jitter): 0.5 hingga 1.5 detik
+                     // Jika HP Koordinator & Anggota klik Save bersamaan, jeda ini memisahkan request mereka 
                      const delay = Math.floor(Math.random() * 1000) + 500;
                      await new Promise(r => setTimeout(r, delay));
 
                      try {
+                         // 2. Ambil data terbaru dari Spreadsheet sebelum menimpa database
                          const dbData = await window.ambilDataDariSpreadsheet();
                          let finalData = dataArray;
 
+                         // 3. Proses Merge (Gabungkan Data)
                          if (dbData && dbData[key]) {
                              const serverData = dbData[key];
 
+                             // Hanya merge jika data tidak sedang dihapus (panjang array bertambah atau sama)
                              if (dataArray.length >= serverData.length) {
                                  const map = new Map();
                                  
-                                 // Kita gunakan ID asli yang sudah dikunci tanpa Math.random() baru, sehingga tidak terjadi Double Input.
-                                 serverData.forEach(item => { if (item && item.id) map.set(item.id.toString(), item); });
-                                 dataArray.forEach(item => { if (item && item.id) map.set(item.id.toString(), item); });
+                                 // KUNCI PERBAIKAN: Kunci Komposit (Tanggal + ID) untuk menghapus data ganda di Spreadsheet
+                                 const getUniqueKey = (item) => {
+                                     if (!item) return Math.random().toString();
+                                     if (key === 'jimpitan' && item.tanggal && item.wargaId) {
+                                         if (item.wargaId === 'KAS-UMUM') return `KAS_${item.tanggal}_${item.jadwalId}`;
+                                         return `JMP_${item.tanggal}_${item.wargaId}`;
+                                     }
+                                     if (key === 'absensi' && item.tanggal && item.wargaId) {
+                                         return `ABS_${item.tanggal}_${item.jadwalId}_${item.wargaId}`;
+                                     }
+                                     return item.id ? item.id.toString() : Math.random().toString();
+                                 };
+
+                                 // Masukkan data dari server terlebih dahulu (Data dari HP lain)
+                                 serverData.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
+                                 
+                                 // Timpa / Tambahkan dengan data lokal (Data dari HP ini)
+                                 // Ini akan otomatis menimpa & menghapus data ganda di Spreadsheet secara permanen!
+                                 dataArray.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
                                  
                                  finalData = Array.from(map.values());
                                  
+                                 // Urutkan kembali berdasarkan Timestamp/ID
                                  if (key === 'jimpitan' || key === 'absensi') {
                                      finalData.sort((a, b) => b.id - a.id);
                                  } else if (key === 'warga' || key === 'jadwal') {
@@ -2497,9 +2510,11 @@
                              }
                          }
 
+                         // 4. Simpan data yang sudah digabungkan secara utuh
                          const isSuccess = await window.simpanDataKeSpreadsheet(key, finalData);
                          
-                         if (isSuccess && finalData.length > dataArray.length) {
+                         // 5. Update tampilan di HP ini dengan data final yang sudah bersih dari ganda
+                         if (isSuccess) {
                              if (key === 'jimpitan') setJimpitan(finalData);
                              if (key === 'absensi') setAbsensi(finalData);
                              if (key === 'warga') setWarga(finalData);
@@ -2508,15 +2523,19 @@
 
                          resolve(isSuccess);
                      } catch (error) {
+                         console.error("Gagal melakukan merge sinkronisasi:", error);
+                         // Fallback: Jika ada error jaringan saat merge, tetap paksakan simpan data HP ini
                          const fallbackSuccess = await window.simpanDataKeSpreadsheet(key, dataArray);
                          resolve(fallbackSuccess);
                      }
                  })
                  .catch(err => {
+                     console.error("Queue Sync Catch Error:", err);
                      resolve(false);
                  });
          });
       };
+      // -------------------------------------------------------------
 
       const showToast = (msg) => {
         setToastMessage(msg);
