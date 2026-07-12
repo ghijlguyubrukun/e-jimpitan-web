@@ -1,11 +1,20 @@
 <!-- 
   =========================================================================
   FILE: Index.html (FRONTEND USER INTERFACE) - VERSI FINAL STABIL
-  - Fix: Mengosongkan kerangka HTML loader untuk mengatasi "Memuat Modul Aplikasi" menembus layar.
-  - Fix: ID Absensi dipertahankan saat di-edit berulang kali agar Riwayat tidak hilang.
-  - Fix: Validasi Edit Laporan Harian membaca String('0') agar input angka 0 bisa tersimpan.
-  - Fix: Algoritma `getUniqueKey` disempurnakan di dalam sistem Sinkronisasi Queue untuk mencegah Duplikasi.
-  - Fitur: Peringatan Spesifik Koordinator melakukan scan ganda dilengkapi nama warga.
+  - Fix Utama: Mengunci versi CDN Babel (7.23.6) dan React (18.2.0)
+  - Fitur: Edit ID Barcode & Auto-Sort ID Barcode Data Warga
+  - Fitur: Export Excel Rekap Laporan Keuangan
+  - Fix: Sidebar Desktop sekarang bisa di-Hide/Show (Toggle) agar tampilan lebih LUAS.
+  - Fix: Algoritma Euclidean Distance untuk menghapus Background Logo (Bebas Frame Putih 100%).
+  - Fitur: Favicon website ditambahkan.
+  - Fix: Angka nominal grafik tampil utuh (contoh: 316.900) & tidak terpotong.
+  - Fix: Total Keseluruhan (Denda & Jimpitan) di Laporan Dashboard Warga.
+  - Fix: Nama Web & Tagline responsif (melipat/break-words), bebas terpotong di HP.
+  - Fix: Bingkai putih untuk Logo di atas Header/Sidebar berwarna agar logo tidak mati.
+  - Fix (Update): Queue Promise & Merge Array untuk Mencegah Race Condition di Google Sheets.
+  - Fix (Update): Peringatan Barcode Ganda & Proteksi Double Click Setoran.
+  - Fix (Baru): Mempertahankan ID lama dan menggunakan String.trim() untuk input Edit Manual.
+  - Fix (Baru): Menghapus layout loader manual untuk mencegah overlap "Memuat Modul".
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -129,7 +138,7 @@
   </style>
 </head>
 <body class="bg-gray-50">
-  <!-- FIX: Mengosongkan tag root untuk mencegah tulisan "Memuat Modul" overlap saat scroll -->
+  <!-- FIX: Mengosongkan kerangka loader untuk mengatasi overlap "Memuat Modul" -->
   <div id="root"></div>
 
   <script type="text/babel">
@@ -240,10 +249,11 @@
                   )}
                 </div>
                 <h1 className="text-2xl font-black">{settings?.webName || 'e-Jimpitan'}</h1>
-                <p className="text-sm text-gray-500 mt-1">{settings?.tagline || 'Sistem Keuangan Warga'}</p>
+                <p className="text-sm text-gray-500 mt-1">{settings?.tagline || 'Dari Warga, Oleh Warga, Untuk Warga'}</p>
               </div>
               <form onSubmit={handleLogin} className="space-y-5">
                 {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm font-semibold animate-fade-in">{error}</div>}
+                
                 <div>
                   <label className="block text-sm font-bold mb-2">Username</label>
                   <input type="text" required className={`w-full p-3 rounded-lg border ${ui?.input || ''}`} value={username} onChange={e => setUsername(e.target.value)} placeholder="Masukkan username..." />
@@ -1181,9 +1191,8 @@
       const [isCameraActive, setIsCameraActive] = useState(false);
       const scannerRef = useRef(null);
 
-      // FITUR PERINGATAN GANDA: Memeriksa apakah warga sudah bayar JIMPITAN pada HARI ini.
       const checkAlreadyPaid = (wId) => {
-        return jimpitan.some(j => j.tanggal === inputDate && j.wargaId === wId);
+        return jimpitan.some(j => j.tanggal === inputDate && (j.jadwalId === selectedJadwalId || (!selectedJadwalId && j.jadwalId === 'Tanpa Regu')) && j.wargaId === wId);
       }
 
       const startCamera = () => {
@@ -1264,7 +1273,6 @@
         if (!scannedWarga) return;
         if (!inputDate) return showToast("Tanggal jimpitan belum dipilih!");
         
-        // PROTEKSI DOUBLE CLICK
         if (checkAlreadyPaid(scannedWarga.id)) {
             showToast(`⚠️ NOTIFIKASI: Koordinator mencoba scan ulang. Jimpitan atas nama ${scannedWarga.nama} SUDAH TERCATAT!`);
             setScannedWarga(null);
@@ -1580,18 +1588,22 @@
         const editedJimpitan = [];
         const editedAbsensi = [];
         
-        // FIX: Edit Laporan - pastikan nilai nominal 0, kosong, atau desimal bisa terbaca (String Cast)
         editFormData.forEach(d => {
            const nomVal = (d.nominal !== undefined && d.nominal !== null) ? String(d.nominal).trim() : '';
+           const existingJ = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === d.wargaId);
            
            if (nomVal !== '' && Number(nomVal) >= 0) {
-             const existingJ = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === d.wargaId);
              editedJimpitan.push({
                  id: existingJ ? existingJ.id : Date.now() + Math.random(),
                  tanggal, bulan: monthStr, tahun: yearStr,
                  jadwalId, wargaId: d.wargaId, nominal: Number(nomVal)
              });
+           } else if (existingJ) {
+             editedJimpitan.push({
+                 ...existingJ, nominal: 0
+             });
            }
+
            if (d.isMember) {
              const existingA = absensi.find(a => a.tanggal === tanggal && a.jadwalId === jadwalId && a.wargaId === d.wargaId);
              editedAbsensi.push({
@@ -1602,14 +1614,18 @@
            }
         });
 
-        // FIX: Manual Jimpitan form dari admin - validasi sama menggunakan string trim
         const manualKasVal = (manualJimpitanEdit !== undefined && manualJimpitanEdit !== null) ? String(manualJimpitanEdit).trim() : '';
+        const existingManual = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === 'KAS-UMUM');
+        
         if (manualKasVal !== '' && Number(manualKasVal) >= 0 && isAdmin) {
-            const existingManual = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === 'KAS-UMUM');
             editedJimpitan.push({
                 id: existingManual ? existingManual.id : Date.now() + Math.random(),
                 tanggal, bulan: monthStr, tahun: yearStr,
                 jadwalId, wargaId: 'KAS-UMUM', nominal: Number(manualKasVal)
+            });
+        } else if (existingManual && manualKasVal === '' && isAdmin) {
+            editedJimpitan.push({
+                ...existingManual, nominal: 0
             });
         }
         
@@ -2370,7 +2386,7 @@
       
       const [settings, setSettings] = useState({ 
         webName: 'e-Jimpitan GHIJL', 
-        tagline: 'Dari Warga, Oleh Warga, Untuk Warga ',
+        tagline: 'Dari Warga, Oleh Warga, Untuk Warga',
         logoUrl: null, 
         nominalJimpitan: 2000, 
         nominalDenda: 10000,
@@ -2440,6 +2456,7 @@
         muatData();
       }, []);
 
+      // --- FITUR BARU: SINKRONISASI ANTI-BENTROK (CONCURRENCY) DENGAN PROMISE QUEUE ---
       const syncData = async (key, dataArray) => {
          return new Promise((resolve) => {
              window.syncQueuePromise = (window.syncQueuePromise || Promise.resolve())
@@ -2453,37 +2470,34 @@
 
                          if (dbData && dbData[key]) {
                              const serverData = dbData[key];
-
-                             if (dataArray.length >= serverData.length) {
-                                 const map = new Map();
-                                 
-                                 const getUniqueKey = (item) => {
-                                     if (key === 'jimpitan' && item.tanggal && item.wargaId) {
-                                         if (item.wargaId === 'KAS-UMUM') return `KAS_${item.tanggal}_${item.jadwalId}`;
-                                         return `JMP_${item.tanggal}_${item.wargaId}`;
-                                     }
-                                     if (key === 'absensi' && item.tanggal && item.wargaId) {
-                                         return `ABS_${item.tanggal}_${item.jadwalId}_${item.wargaId}`;
-                                     }
-                                     return item.id ? item.id.toString() : Math.random().toString();
-                                 };
-
-                                 serverData.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
-                                 dataArray.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
-                                 
-                                 finalData = Array.from(map.values());
-                                 
-                                 if (key === 'jimpitan' || key === 'absensi') {
-                                     finalData.sort((a, b) => b.id - a.id);
-                                 } else if (key === 'warga' || key === 'jadwal') {
-                                     finalData.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+                             const map = new Map();
+                             
+                             const getUniqueKey = (item) => {
+                                 if (key === 'jimpitan' && item.tanggal && item.wargaId) {
+                                     if (item.wargaId === 'KAS-UMUM') return `KAS_${item.tanggal}_${item.jadwalId}`;
+                                     return `JMP_${item.tanggal}_${item.wargaId}`;
                                  }
+                                 if (key === 'absensi' && item.tanggal && item.wargaId) {
+                                     return `ABS_${item.tanggal}_${item.jadwalId}_${item.wargaId}`;
+                                 }
+                                 return item.id ? item.id.toString() : Math.random().toString();
+                             };
+
+                             serverData.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
+                             dataArray.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
+                             
+                             finalData = Array.from(map.values());
+                             
+                             if (key === 'jimpitan' || key === 'absensi') {
+                                 finalData.sort((a, b) => b.id - a.id);
+                             } else if (key === 'warga' || key === 'jadwal') {
+                                 finalData.sort((a, b) => String(a.id).localeCompare(String(b.id)));
                              }
                          }
 
                          const isSuccess = await window.simpanDataKeSpreadsheet(key, finalData);
                          
-                         if (isSuccess && finalData.length > dataArray.length) {
+                         if (isSuccess && finalData.length !== dataArray.length) {
                              if (key === 'jimpitan') setJimpitan(finalData);
                              if (key === 'absensi') setAbsensi(finalData);
                              if (key === 'warga') setWarga(finalData);
@@ -2501,6 +2515,7 @@
                  });
          });
       };
+      // -------------------------------------------------------------
 
       const showToast = (msg) => {
         setToastMessage(msg);
