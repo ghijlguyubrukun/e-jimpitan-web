@@ -746,13 +746,13 @@
         syncData("absensi", updatedAbsensi);
         
         if (totalJimpitanManual !== '' && Number(totalJimpitanManual) >= 0 && isAdmin) {
+            // FIX: Hilangkan pencarian jadwalId untuk jimpitan
             const existingManual = jimpitan.find(j => j.tanggal === inputDate && j.wargaId === 'KAS-UMUM');
             const newJimpitanManual = {
                 id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000),
                 tanggal: inputDate,
                 bulan: monthStr,
                 tahun: yearStr,
-                // FIX CRITICAL: Menghapus jadwalId sesuai struktur Sheet Jimpitan
                 wargaId: 'KAS-UMUM',
                 nominal: Number(totalJimpitanManual)
             };
@@ -1266,7 +1266,6 @@
         const monthStr = monthNames[dateObj.getMonth()];
         const yearStr = dateObj.getFullYear().toString();
 
-        // FIX CRITICAL: Menghapus jadwalId secara utuh untuk data Jimpitan
         const newEntry = { 
           id: Date.now() + Math.floor(Math.random() * 10000), 
           tanggal: inputDate, 
@@ -1278,7 +1277,6 @@
         const updatedJimpitan = [newEntry, ...jimpitan];
         setJimpitan(updatedJimpitan);
         syncData("jimpitan", updatedJimpitan);
-        
         setScannedWarga(null); 
         setManualId(''); 
         showToast('Setoran Rp 500 berhasil dicatat!');
@@ -1472,8 +1470,6 @@
       const grandTotalJimpitan = filteredJimpitan.reduce((sum, j) => sum + (Number(j.nominal) || 0), 0);
       const grandTotalDenda = rekapWarga.reduce((sum, w) => sum + w.denda, 0);
 
-      // FIX CRITICAL: Rekap Harian juga butuh metode inferensi tanggal untuk menempatkan
-      // Jimpitan ke baris Jadwal Regu yang tepat (karena kolom jadwalId di Jimpitan sudah dihapus).
       const rekapHarian = useMemo(() => {
         const harianMap = {};
         
@@ -1609,9 +1605,10 @@
              editedJimpitan.push({
                  id: existingJ ? existingJ.id : Date.now() + Math.floor(Math.random() * 10000),
                  tanggal, bulan: monthStr, tahun: yearStr,
-                 wargaId: d.wargaId, nominal: Number(nomString) // FIX: Tanpa jadwalId
+                 wargaId: d.wargaId, nominal: Number(nomString)
              });
            } else if (existingJ) {
+             // Soft-delete untuk menimpa sheet
              editedJimpitan.push({
                  ...existingJ, nominal: 0
              });
@@ -1634,7 +1631,7 @@
             editedJimpitan.push({
                 id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000),
                 tanggal, bulan: monthStr, tahun: yearStr,
-                wargaId: 'KAS-UMUM', nominal: Number(manualKasString) // FIX: Tanpa jadwalId
+                wargaId: 'KAS-UMUM', nominal: Number(manualKasString)
             });
         } else if (existingManual && manualKasString === '' && isAdmin) {
             editedJimpitan.push({
