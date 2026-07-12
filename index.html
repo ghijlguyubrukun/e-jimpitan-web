@@ -11,10 +11,10 @@
   - Fix: Total Keseluruhan (Denda & Jimpitan) di Laporan Dashboard Warga.
   - Fix: Nama Web & Tagline responsif (melipat/break-words), bebas terpotong di HP.
   - Fix: Bingkai putih untuk Logo di atas Header/Sidebar berwarna agar logo tidak mati.
-  - Fix (Update): Queue Promise & Merge Array dengan Kunci Komposit (Anti-Double Input).
+  - Fix (Update): Queue Promise & Merge Array untuk Mencegah Race Condition di Google Sheets.
   - Fix (Update): Peringatan Barcode Ganda & Proteksi Double Click Setoran.
-  - Fix (Penting): Sinkronisasi Absolut. Edit Manual & Hapus Nominal 100% menimpa Spreadsheet.
-  - Fix (Penting): Menghapus loader bawaan HTML agar tulisan tidak tembus ke bawah aplikasi.
+  - Fix (Penting): Menghapus ketergantungan pada jadwalId untuk sheet jimpitan sesuai struktur asli.
+  - Fix (Penting): Merubah ID yang tadinya desimal float menjadi integer utuh agar dikenali Apps Script.
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -138,7 +138,6 @@
   </style>
 </head>
 <body class="bg-gray-50">
-  <!-- FIX: Mengosongkan kerangka div root agar tulisan loading tidak tembus saat di scroll -->
   <div id="root"></div>
 
   <script type="text/babel">
@@ -241,6 +240,7 @@
           <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
               <div className="text-center mb-8">
+                {/* Logo Frame Putih di Form Login */}
                 <div className="bg-white p-2 rounded-xl shadow-md flex items-center justify-center mx-auto w-24 h-24 mb-4">
                   {settings?.logoUrl ? (
                     <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
@@ -400,9 +400,11 @@
                     <div className="w-full flex items-center justify-center text-sm text-gray-400 italic">Belum ada data jimpitan di tahun {chartYear}.</div>
                   ) : (
                     jimpitanChartData.map((data, idx) => {
+                      // Skala maksimal 80% agar sisa 20% ke atas untuk menampung teks angka nominal
                       const heightPercent = Math.max((data.total / (maxJimpitan || 1)) * 80, 2);
                       return (
                         <div key={idx} className="flex flex-col items-center flex-1 group h-full justify-end relative">
+                          {/* Label Angka Nominal Tampil Utuh & Permanen */}
                           <div className="absolute text-[9px] sm:text-[10px] font-bold text-gray-700 dark:text-gray-300 text-center whitespace-nowrap transition-transform" style={{ bottom: `calc(${heightPercent}% + 4px)` }}>
                             {data.total > 0 ? data.total.toLocaleString('id-ID') : '0'}
                           </div>
@@ -521,6 +523,7 @@
                         </td>
                       </tr>
                     ))}
+                    {/* FITUR BARU: TOTAL KESELURUHAN PADA LAPORAN PUBLIK */}
                     <tr className="bg-gray-100 dark:bg-gray-800 font-bold text-sm">
                       <td colSpan="3" className="p-4 text-right uppercase">Total Keseluruhan:</td>
                       <td className="p-4 text-right text-red-600">Rp {grandTotalDendaDashboard.toLocaleString('id-ID')}</td>
@@ -746,7 +749,7 @@
         const newEntries = Object.keys(absenData).map(wId => {
           const existing = absensi.find(a => a.tanggal === inputDate && a.jadwalId === selectedJadwalId && a.wargaId === wId);
           return {
-            id: existing ? existing.id : Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
+            id: existing ? existing.id : Date.now() + Math.floor(Math.random() * 10000),
             tanggal: inputDate,
             bulan: monthStr,
             tahun: yearStr,
@@ -765,9 +768,10 @@
         syncData("absensi", updatedAbsensi);
         
         if (totalJimpitanManual !== '' && Number(totalJimpitanManual) >= 0 && isAdmin) {
-            const existingManual = jimpitan.find(j => j.tanggal === inputDate && j.jadwalId === selectedJadwalId && j.wargaId === 'KAS-UMUM');
+            // FIX: Hilangkan pencarian jadwalId untuk jimpitan
+            const existingManual = jimpitan.find(j => j.tanggal === inputDate && j.wargaId === 'KAS-UMUM');
             const newJimpitanManual = {
-                id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
+                id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000),
                 tanggal: inputDate,
                 bulan: monthStr,
                 tahun: yearStr,
@@ -775,7 +779,7 @@
                 wargaId: 'KAS-UMUM',
                 nominal: Number(totalJimpitanManual)
             };
-            const filteredJimpitan = jimpitan.filter(j => !(j.tanggal === inputDate && j.jadwalId === selectedJadwalId && j.wargaId === 'KAS-UMUM'));
+            const filteredJimpitan = jimpitan.filter(j => !(j.tanggal === inputDate && j.wargaId === 'KAS-UMUM'));
             const updatedJimpitan = [newJimpitanManual, ...filteredJimpitan];
             setJimpitan(updatedJimpitan);
             syncData("jimpitan", updatedJimpitan);
@@ -1190,8 +1194,9 @@
       const [isCameraActive, setIsCameraActive] = useState(false);
       const scannerRef = useRef(null);
 
+      // FITUR PERINGATAN GANDA: Memeriksa apakah warga sudah bayar JIMPITAN pada HARI ini.
       const checkAlreadyPaid = (wId) => {
-        return jimpitan.some(j => j.tanggal === inputDate && (j.jadwalId === selectedJadwalId || (!selectedJadwalId && j.jadwalId === 'Tanpa Regu')) && j.wargaId === wId);
+        return jimpitan.some(j => j.tanggal === inputDate && j.wargaId === wId);
       }
 
       const startCamera = () => {
@@ -1217,7 +1222,7 @@
               const w = warga.find(x => x.id === decodedText.trim().toUpperCase());
               if (w) {
                 if (checkAlreadyPaid(w.id)) {
-                   showToast(`⚠️ NOTIFIKASI: Koordinator mencoba scan ulang. Jimpitan atas nama ${w.nama} SUDAH TERCATAT!`);
+                   showToast(`Peringatan: ID Barcode atau Barcode sudah ter-scan!`);
                    stopCamera();
                 } else {
                    setScannedWarga(w);
@@ -1259,7 +1264,7 @@
         const w = warga.find(x => x.id === manualId.toUpperCase());
         if (w) {
           if (checkAlreadyPaid(w.id)) {
-            showToast(`⚠️ NOTIFIKASI: Koordinator mencoba scan ulang. Jimpitan atas nama ${w.nama} SUDAH TERCATAT!`);
+            showToast(`Peringatan: ID Barcode atau Barcode sudah ter-scan!`);
           } else {
             setScannedWarga(w); 
           }
@@ -1272,8 +1277,9 @@
         if (!scannedWarga) return;
         if (!inputDate) return showToast("Tanggal jimpitan belum dipilih!");
         
+        // PROTEKSI DOUBLE CLICK
         if (checkAlreadyPaid(scannedWarga.id)) {
-            showToast(`⚠️ NOTIFIKASI: Koordinator mencoba scan ulang. Jimpitan atas nama ${scannedWarga.nama} SUDAH TERCATAT!`);
+            showToast(`Peringatan: ID Barcode atau Barcode sudah ter-scan!`);
             setScannedWarga(null);
             setManualId('');
             return;
@@ -1286,7 +1292,7 @@
         const yearStr = dateObj.getFullYear().toString();
 
         const newEntry = { 
-          id: Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
+          id: Date.now() + Math.floor(Math.random() * 10000), 
           tanggal: inputDate, 
           bulan: monthStr, 
           tahun: yearStr,
@@ -1549,11 +1555,13 @@
         const jw = jadwal.find(x => x.id === jadwalId);
         const reguMembers = jw ? [jw.koordinatorId, ...jw.anggotaIds] : [];
 
-        const existingManualJimpitan = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === 'KAS-UMUM');
+        // FIX: Hapus pengecekan jadwalId karena di spreadsheet kolom tersebut tidak ada untuk Jimpitan
+        const existingManualJimpitan = jimpitan.find(j => j.tanggal === tanggal && j.wargaId === 'KAS-UMUM');
         setManualJimpitanEdit(existingManualJimpitan ? existingManualJimpitan.nominal : '');
 
         const formData = warga.map(w => {
-           const existingJimpitan = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === w.id);
+           // Cukup cari berdasarkan tanggal dan id warga
+           const existingJimpitan = jimpitan.find(j => j.tanggal === tanggal && j.wargaId === w.id);
            const existingAbsen = absensi.find(a => a.tanggal === tanggal && a.jadwalId === jadwalId && a.wargaId === w.id);
            const isMember = reguMembers.includes(w.id);
 
@@ -1581,48 +1589,54 @@
         const monthStr = monthNames[dateObj.getMonth()];
         const yearStr = dateObj.getFullYear().toString();
 
-        const newJimpitan = jimpitan.filter(j => !(j.tanggal === tanggal && j.jadwalId === jadwalId));
+        // Kumpulkan semua wargaId yang sedang diedit (termasuk KAS-UMUM)
+        const editedWargaIds = editFormData.map(d => d.wargaId);
+        editedWargaIds.push('KAS-UMUM');
+
+        // FIX: Filter penimpaan tanpa jadwalId, menimpa berdasarkan warga yang sedang diedit
+        const newJimpitan = jimpitan.filter(j => !(j.tanggal === tanggal && editedWargaIds.includes(j.wargaId)));
         const newAbsensi = absensi.filter(a => !(a.tanggal === tanggal && a.jadwalId === jadwalId));
         
         const editedJimpitan = [];
         const editedAbsensi = [];
         
         editFormData.forEach(d => {
-           const nomVal = (d.nominal !== undefined && d.nominal !== null) ? String(d.nominal).trim() : '';
-           const existingJ = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === d.wargaId);
+           const nomString = d.nominal !== undefined && d.nominal !== null ? String(d.nominal).trim() : '';
+           const existingJ = jimpitan.find(j => j.tanggal === tanggal && j.wargaId === d.wargaId);
            
-           if (nomVal !== '' && Number(nomVal) >= 0) {
+           if (nomString !== '' && Number(nomString) >= 0) {
              editedJimpitan.push({
-                 id: existingJ ? existingJ.id : Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
+                 id: existingJ ? existingJ.id : Date.now() + Math.floor(Math.random() * 10000),
                  tanggal, bulan: monthStr, tahun: yearStr,
-                 jadwalId, wargaId: d.wargaId, nominal: Number(nomVal)
+                 jadwalId, wargaId: d.wargaId, nominal: Number(nomString)
              });
            } else if (existingJ) {
+             // Soft-delete untuk menimpa sheet
              editedJimpitan.push({
                  ...existingJ, nominal: 0
              });
            }
-
+           
            if (d.isMember) {
              const existingA = absensi.find(a => a.tanggal === tanggal && a.jadwalId === jadwalId && a.wargaId === d.wargaId);
              editedAbsensi.push({
-                 id: existingA ? existingA.id : Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
+                 id: existingA ? existingA.id : Date.now() + Math.floor(Math.random() * 10000),
                  tanggal, bulan: monthStr, tahun: yearStr,
                  jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
              });
            }
         });
 
-        const manualKasVal = (manualJimpitanEdit !== undefined && manualJimpitanEdit !== null) ? String(manualJimpitanEdit).trim() : '';
-        const existingManual = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === 'KAS-UMUM');
+        const manualKasString = manualJimpitanEdit !== undefined && manualJimpitanEdit !== null ? String(manualJimpitanEdit).trim() : '';
+        const existingManual = jimpitan.find(j => j.tanggal === tanggal && j.wargaId === 'KAS-UMUM');
         
-        if (manualKasVal !== '' && Number(manualKasVal) >= 0 && isAdmin) {
+        if (manualKasString !== '' && Number(manualKasString) >= 0 && isAdmin) {
             editedJimpitan.push({
-                id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000), // FIXED FLOAT
+                id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000),
                 tanggal, bulan: monthStr, tahun: yearStr,
-                jadwalId, wargaId: 'KAS-UMUM', nominal: Number(manualKasVal)
+                jadwalId, wargaId: 'KAS-UMUM', nominal: Number(manualKasString)
             });
-        } else if (existingManual && manualKasVal === '' && isAdmin) {
+        } else if (existingManual && manualKasString === '' && isAdmin) {
             editedJimpitan.push({
                 ...existingManual, nominal: 0
             });
@@ -1642,7 +1656,11 @@
 
       const handleHapusLaporan = () => {
          requestConfirm("Yakin ingin menghapus seluruh laporan (Absen & Jimpitan) pada tanggal dan regu ini?", () => {
-             const newJimpitan = jimpitan.filter(j => !(j.tanggal === editModal.tanggal && j.jadwalId === editModal.jadwalId));
+             const jw = jadwal.find(x => x.id === editModal.jadwalId);
+             const reguMembers = jw ? [jw.koordinatorId, ...jw.anggotaIds] : [];
+             
+             // Hapus jimpitan berdasarkan tanggal dan warga di regu tersebut
+             const newJimpitan = jimpitan.filter(j => !(j.tanggal === editModal.tanggal && (reguMembers.includes(j.wargaId) || j.wargaId === 'KAS-UMUM')));
              const newAbsensi = absensi.filter(a => !(a.tanggal === editModal.tanggal && a.jadwalId === editModal.jadwalId));
              
              setJimpitan(newJimpitan);
@@ -2483,7 +2501,7 @@
                                  const getUniqueKey = (item) => {
                                      if (!item) return Math.random().toString();
                                      if (key === 'jimpitan' && item.tanggal && item.wargaId) {
-                                         if (item.wargaId === 'KAS-UMUM') return `KAS_${item.tanggal}_${item.jadwalId}`;
+                                         // Semua jimpitan (termasuk KAS-UMUM) unik berdasarkan tanggal & wargaId
                                          return `JMP_${item.tanggal}_${item.wargaId}`;
                                      }
                                      if (key === 'absensi' && item.tanggal && item.wargaId) {
@@ -2514,7 +2532,7 @@
                          const isSuccess = await window.simpanDataKeSpreadsheet(key, finalData);
                          
                          // 5. Update tampilan di HP ini dengan data final yang sudah bersih dari ganda
-                         if (isSuccess) {
+                         if (isSuccess && finalData.length !== dataArray.length) {
                              if (key === 'jimpitan') setJimpitan(finalData);
                              if (key === 'absensi') setAbsensi(finalData);
                              if (key === 'warga') setWarga(finalData);
@@ -2605,10 +2623,12 @@
                </div>
             )}
             
+            {/* HEADER PUBLIK BERWARNA TEMA DENGAN BINGKAI LOGO PUTIH */}
             <header className={`${theme.main} text-white shadow-md sticky top-0 z-50 border-b border-transparent`}>
               <div className="max-w-7xl mx-auto px-4">
                 <div className="flex justify-between items-center py-3 min-h-[80px]">
                   <div className="flex items-center gap-3 sm:gap-4">
+                    {/* BINGKAI PUTIH UNTUK LOGO AGAR WARNA TIDAK MATI */}
                     <div className="bg-white p-1.5 sm:p-2 rounded-xl shadow-md flex items-center justify-center shrink-0">
                       {settings.logoUrl ? (
                          <img src={settings.logoUrl} alt="Logo" className="h-10 sm:h-12 w-auto max-w-[80px] sm:max-w-[120px] object-contain" />
@@ -2616,6 +2636,7 @@
                          <ShieldCheck size={32} className={theme.text} />
                       )}
                     </div>
+                    {/* TEKS RESPONSIP MELIPAT KE BAWAH */}
                     <div className="flex flex-col justify-center min-w-0 max-w-[200px] sm:max-w-md">
                       <h1 className="text-base sm:text-xl font-black leading-tight text-white break-words whitespace-normal">{settings.webName}</h1>
                       <span className="text-[10px] sm:text-xs font-medium opacity-90 leading-snug mt-0.5 text-blue-100 break-words whitespace-normal">{settings.tagline}</span>
@@ -2678,11 +2699,13 @@
 
           {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden print-hide" onClick={() => setIsMobileMenuOpen(false)} />}
           
+          {/* LAYOUT SIDEBAR ADMIN */}
           <aside className={`fixed inset-y-0 left-0 w-64 shadow-xl z-50 transform transition-transform flex flex-col ${ui.sidebar} print-hide 
             ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
             ${isDesktopSidebarOpen ? 'md:static md:translate-x-0' : 'md:hidden md:-translate-x-full'} 
             md:flex-shrink-0`}>
             
+            {/* SIDEBAR HEADER DENGAN BINGKAI LOGO PUTIH */}
             <div className={`p-5 border-b flex items-center gap-3 ${theme.main} text-white`}>
               <div className="bg-white p-1.5 rounded-xl shadow-md flex items-center justify-center shrink-0">
                 {settings.logoUrl ? (
@@ -2723,6 +2746,7 @@
           </aside>
 
           <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {/* HEADER ADMIN */}
             <header className={`shadow-sm border-b p-4 flex justify-between items-center print-hide ${ui.sidebar}`}>
               <div className="flex items-center gap-3">
                 <button onClick={() => window.innerWidth >= 768 ? setIsDesktopSidebarOpen(!isDesktopSidebarOpen) : setIsMobileMenuOpen(true)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-gray-600 dark:text-gray-300">
