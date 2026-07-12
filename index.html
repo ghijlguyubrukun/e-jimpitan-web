@@ -13,8 +13,8 @@
   - Fix: Bingkai putih untuk Logo di atas Header/Sidebar berwarna agar logo tidak mati.
   - Fix (Update): Queue Promise & Merge Array untuk Mencegah Race Condition di Google Sheets.
   - Fix (Update): Peringatan Barcode Ganda & Proteksi Double Click Setoran.
-  - Fix (Baru): Mempertahankan ID lama dan menggunakan String.trim() untuk input Edit Manual.
-  - Fix (Baru): Menghapus layout loader manual untuk mencegah overlap "Memuat Modul".
+  - Fix (Penting): Mempertahankan ID saat Edit Laporan untuk mencegah Double Input Spreadsheet.
+  - Fix (Penting): Menambahkan Soft-Delete (0) saat nominal dihapus manual agar sinkron ke Server.
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -138,8 +138,16 @@
   </style>
 </head>
 <body class="bg-gray-50">
-  <!-- FIX: Mengosongkan kerangka loader untuk mengatasi overlap "Memuat Modul" -->
-  <div id="root"></div>
+  <div id="root">
+    <!-- Loader Manual HTML sebelum React aktif -->
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: #4B5563;">
+      <svg class="animate-spin" style="width: 48px; height: 48px; color: #3B82F6; margin-bottom: 16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p style="font-weight: bold; font-size: 1.125rem;">Memuat Modul Aplikasi...</p>
+    </div>
+  </div>
 
   <script type="text/babel">
     const { useState, useMemo, useEffect, useRef } = React;
@@ -1594,11 +1602,12 @@
            
            if (nomVal !== '' && Number(nomVal) >= 0) {
              editedJimpitan.push({
-                 id: existingJ ? existingJ.id : Date.now() + Math.random(),
+                 id: existingJ ? existingJ.id : Date.now() + Math.floor(Math.random() * 10000), // Mencegah ID baru agar tidak Double
                  tanggal, bulan: monthStr, tahun: yearStr,
                  jadwalId, wargaId: d.wargaId, nominal: Number(nomVal)
              });
            } else if (existingJ) {
+             // Jika input dikosongkan (hapus), kirim nilai 0 agar Server menimpa datanya (Soft-Delete)
              editedJimpitan.push({
                  ...existingJ, nominal: 0
              });
@@ -1607,7 +1616,7 @@
            if (d.isMember) {
              const existingA = absensi.find(a => a.tanggal === tanggal && a.jadwalId === jadwalId && a.wargaId === d.wargaId);
              editedAbsensi.push({
-                 id: existingA ? existingA.id : Date.now() + Math.random(),
+                 id: existingA ? existingA.id : Date.now() + Math.floor(Math.random() * 10000), // Mencegah ID baru agar tidak Double
                  tanggal, bulan: monthStr, tahun: yearStr,
                  jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
              });
@@ -1619,11 +1628,12 @@
         
         if (manualKasVal !== '' && Number(manualKasVal) >= 0 && isAdmin) {
             editedJimpitan.push({
-                id: existingManual ? existingManual.id : Date.now() + Math.random(),
+                id: existingManual ? existingManual.id : Date.now() + Math.floor(Math.random() * 10000), // Mencegah ID baru agar tidak Double
                 tanggal, bulan: monthStr, tahun: yearStr,
                 jadwalId, wargaId: 'KAS-UMUM', nominal: Number(manualKasVal)
             });
         } else if (existingManual && manualKasVal === '' && isAdmin) {
+            // Jika dikosongkan (hapus), kirim nilai 0 (Soft-Delete)
             editedJimpitan.push({
                 ...existingManual, nominal: 0
             });
@@ -2386,7 +2396,7 @@
       
       const [settings, setSettings] = useState({ 
         webName: 'e-Jimpitan GHIJL', 
-        tagline: 'Dari Warga, Oleh Warga, Untuk Warga',
+        tagline: 'Dari Warga, Oleh Warga, Untuk Warga ',
         logoUrl: null, 
         nominalJimpitan: 2000, 
         nominalDenda: 10000,
@@ -2456,7 +2466,6 @@
         muatData();
       }, []);
 
-      // --- FITUR BARU: SINKRONISASI ANTI-BENTROK (CONCURRENCY) DENGAN PROMISE QUEUE ---
       const syncData = async (key, dataArray) => {
          return new Promise((resolve) => {
              window.syncQueuePromise = (window.syncQueuePromise || Promise.resolve())
@@ -2470,34 +2479,27 @@
 
                          if (dbData && dbData[key]) {
                              const serverData = dbData[key];
-                             const map = new Map();
-                             
-                             const getUniqueKey = (item) => {
-                                 if (key === 'jimpitan' && item.tanggal && item.wargaId) {
-                                     if (item.wargaId === 'KAS-UMUM') return `KAS_${item.tanggal}_${item.jadwalId}`;
-                                     return `JMP_${item.tanggal}_${item.wargaId}`;
-                                 }
-                                 if (key === 'absensi' && item.tanggal && item.wargaId) {
-                                     return `ABS_${item.tanggal}_${item.jadwalId}_${item.wargaId}`;
-                                 }
-                                 return item.id ? item.id.toString() : Math.random().toString();
-                             };
 
-                             serverData.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
-                             dataArray.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
-                             
-                             finalData = Array.from(map.values());
-                             
-                             if (key === 'jimpitan' || key === 'absensi') {
-                                 finalData.sort((a, b) => b.id - a.id);
-                             } else if (key === 'warga' || key === 'jadwal') {
-                                 finalData.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+                             if (dataArray.length >= serverData.length) {
+                                 const map = new Map();
+                                 
+                                 // Kita gunakan ID asli yang sudah dikunci tanpa Math.random() baru, sehingga tidak terjadi Double Input.
+                                 serverData.forEach(item => { if (item && item.id) map.set(item.id.toString(), item); });
+                                 dataArray.forEach(item => { if (item && item.id) map.set(item.id.toString(), item); });
+                                 
+                                 finalData = Array.from(map.values());
+                                 
+                                 if (key === 'jimpitan' || key === 'absensi') {
+                                     finalData.sort((a, b) => b.id - a.id);
+                                 } else if (key === 'warga' || key === 'jadwal') {
+                                     finalData.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+                                 }
                              }
                          }
 
                          const isSuccess = await window.simpanDataKeSpreadsheet(key, finalData);
                          
-                         if (isSuccess && finalData.length !== dataArray.length) {
+                         if (isSuccess && finalData.length > dataArray.length) {
                              if (key === 'jimpitan') setJimpitan(finalData);
                              if (key === 'absensi') setAbsensi(finalData);
                              if (key === 'warga') setWarga(finalData);
@@ -2515,7 +2517,6 @@
                  });
          });
       };
-      // -------------------------------------------------------------
 
       const showToast = (msg) => {
         setToastMessage(msg);
