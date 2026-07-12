@@ -8,11 +8,11 @@
   - Fix: Algoritma Euclidean Distance untuk menghapus Background Logo (Bebas Frame Putih 100%).
   - Fitur: Favicon website ditambahkan.
   - Fix: Angka nominal grafik tampil utuh (contoh: 316.900) & tidak terpotong.
-  - Fix (Baru): Total Keseluruhan (Denda & Jimpitan) di Laporan Dashboard Warga.
-  - Fix (Baru): Nama Web & Tagline responsif (melipat/break-words), bebas terpotong di HP.
-  - Fix (Baru): Bingkai putih untuk Logo di atas Header/Sidebar berwarna agar logo tidak mati.
-  - Fix (Update Concurrency): Algoritma Jitter Delay & Merge untuk Scan Barcode Bersamaan.
-  - Fix (Update Duplicate Scan): Peringatan ganda dan filter ketat pada Scan Barcode.
+  - Fix: Total Keseluruhan (Denda & Jimpitan) di Laporan Dashboard Warga.
+  - Fix: Nama Web & Tagline responsif (melipat/break-words), bebas terpotong di HP.
+  - Fix: Bingkai putih untuk Logo di atas Header/Sidebar berwarna agar logo tidak mati.
+  - Fix (Update): Queue Promise & Merge Array untuk Mencegah Race Condition di Google Sheets.
+  - Fix (Update): Peringatan Barcode Ganda & Proteksi Double Click Setoran.
   =========================================================================
 -->
 <!DOCTYPE html>
@@ -45,7 +45,6 @@
     window.ambilDataDariSpreadsheet = async function() {
       try {
         const controller = new AbortController();
-        // Memperpanjang batas waktu tunggu (timeout) menjadi 45 detik agar Google Script tidak terputus
         const timeoutId = setTimeout(() => controller.abort(), 45000); 
 
         const response = await fetch(scriptURL, { signal: controller.signal });
@@ -248,7 +247,6 @@
           <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
               <div className="text-center mb-8">
-                {/* Logo Frame Putih di Form Login */}
                 <div className="bg-white p-2 rounded-xl shadow-md flex items-center justify-center mx-auto w-24 h-24 mb-4">
                   {settings?.logoUrl ? (
                     <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
@@ -409,11 +407,9 @@
                     <div className="w-full flex items-center justify-center text-sm text-gray-400 italic">Belum ada data jimpitan di tahun {chartYear}.</div>
                   ) : (
                     jimpitanChartData.map((data, idx) => {
-                      // Skala maksimal 80% agar sisa 20% ke atas untuk menampung teks angka nominal
                       const heightPercent = Math.max((data.total / (maxJimpitan || 1)) * 80, 2);
                       return (
                         <div key={idx} className="flex flex-col items-center flex-1 group h-full justify-end relative">
-                          {/* Label Angka Nominal Tampil Utuh & Permanen */}
                           <div className="absolute text-[9px] sm:text-[10px] font-bold text-gray-700 dark:text-gray-300 text-center whitespace-nowrap transition-transform" style={{ bottom: `calc(${heightPercent}% + 4px)` }}>
                             {data.total > 0 ? data.total.toLocaleString('id-ID') : '0'}
                           </div>
@@ -532,7 +528,6 @@
                         </td>
                       </tr>
                     ))}
-                    {/* FITUR BARU: TOTAL KESELURUHAN PADA LAPORAN PUBLIK */}
                     <tr className="bg-gray-100 dark:bg-gray-800 font-bold text-sm">
                       <td colSpan="3" className="p-4 text-right uppercase">Total Keseluruhan:</td>
                       <td className="p-4 text-right text-red-600">Rp {grandTotalDendaDashboard.toLocaleString('id-ID')}</td>
@@ -1197,7 +1192,7 @@
       const [isCameraActive, setIsCameraActive] = useState(false);
       const scannerRef = useRef(null);
 
-      // FUNGSI INI TELAH DIPERBAIKI SECARA KESELURUHAN (Hanya cek ID & Tanggal, tidak peduli regu apa)
+      // FITUR PERINGATAN GANDA: Memeriksa apakah warga sudah bayar JIMPITAN pada HARI ini.
       const checkAlreadyPaid = (wId) => {
         return jimpitan.some(j => j.tanggal === inputDate && j.wargaId === wId);
       }
@@ -1224,7 +1219,6 @@
             (decodedText) => {
               const w = warga.find(x => x.id === decodedText.trim().toUpperCase());
               if (w) {
-                // PERINGATAN SCAN GANDA DI SINI
                 if (checkAlreadyPaid(w.id)) {
                    showToast('Peringatan: ID Barcode atau Barcode sudah ter-scan!');
                    stopCamera();
@@ -1267,7 +1261,6 @@
         e.preventDefault();
         const w = warga.find(x => x.id === manualId.toUpperCase());
         if (w) {
-          // PERINGATAN MANUAL INPUT GANDA DI SINI
           if (checkAlreadyPaid(w.id)) {
             showToast('Peringatan: ID Barcode atau Barcode sudah ter-scan!');
           } else {
@@ -1282,14 +1275,14 @@
         if (!scannedWarga) return;
         if (!inputDate) return showToast("Tanggal jimpitan belum dipilih!");
         
-        // LAPISAN KEAMANAN TERAKHIR: Mencegah error duplikasi saat tombol di-klik berulang (double-click)
+        // PROTEKSI DOUBLE CLICK
         if (checkAlreadyPaid(scannedWarga.id)) {
             showToast('Peringatan: ID Barcode atau Barcode sudah ter-scan!');
             setScannedWarga(null);
             setManualId('');
             return;
         }
-
+        
         const dateParts = inputDate.split('-');
         const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
         const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -2127,18 +2120,15 @@
             try {
                const imageData = ctxCanvas.getImageData(0, 0, width, height);
                const data = imageData.data;
-               // ALGORITMA LEBIH KUAT: Hapus background putih & abu terang (Anti Frame Putih)
                for (let i = 0; i < data.length; i += 4) {
                  const r = data[i];
                  const g = data[i + 1];
                  const b = data[i + 2];
-                 
                  const dist = Math.sqrt(Math.pow(255 - r, 2) + Math.pow(255 - g, 2) + Math.pow(255 - b, 2));
-                 
                  if (dist < 50) {
-                    data[i + 3] = 0; // Sangat dekat putih, 100% hapus
+                    data[i + 3] = 0; 
                  } else if (dist < 100) {
-                    data[i + 3] = Math.floor(((dist - 50) / 50) * 255); // Edge smoothing (Anti Aliasing)
+                    data[i + 3] = Math.floor(((dist - 50) / 50) * 255); 
                  }
                }
                ctxCanvas.putImageData(imageData, 0, 0);
@@ -2453,62 +2443,73 @@
         muatData();
       }, []);
 
-
-      // --- FITUR BARU: SINKRONISASI ANTI-BENTROK (CONCURRENCY) ---
+      // --- FITUR BARU: SINKRONISASI ANTI-BENTROK (CONCURRENCY) DENGAN PROMISE QUEUE ---
       const syncData = async (key, dataArray) => {
-         // 1. Jeda Waktu Acak (Jitter): 0.5 hingga 2 detik
-         const delay = Math.floor(Math.random() * 1500) + 500;
-         await new Promise(resolve => setTimeout(resolve, delay));
+         return new Promise((resolve) => {
+             // Membuat Antrean (Queue)
+             window.syncQueuePromise = (window.syncQueuePromise || Promise.resolve())
+                 .then(async () => {
+                     // 1. Jeda Waktu Acak (Jitter): 0.5 hingga 1.5 detik
+                     // Jika HP Koordinator & Anggota klik Save bersamaan, jeda ini memisahkan request mereka 
+                     const delay = Math.floor(Math.random() * 1000) + 500;
+                     await new Promise(r => setTimeout(r, delay));
 
-         try {
-             // 2. Ambil data terbaru dari Spreadsheet sebelum menimpa database
-             const dbData = await window.ambilDataDariSpreadsheet();
-             let finalData = dataArray;
+                     try {
+                         // 2. Ambil data terbaru dari Spreadsheet sebelum menimpa database
+                         const dbData = await window.ambilDataDariSpreadsheet();
+                         let finalData = dataArray;
 
-             // 3. Proses Merge (Gabungkan Data)
-             if (dbData && dbData[key]) {
-                 const serverData = dbData[key];
+                         // 3. Proses Merge (Gabungkan Data)
+                         if (dbData && dbData[key]) {
+                             const serverData = dbData[key];
 
-                 if (dataArray.length >= serverData.length) {
-                     const map = new Map();
-                     
-                     // Masukkan data dari server terlebih dahulu (Data dari HP lain)
-                     serverData.forEach(item => { if (item && item.id) map.set(item.id.toString(), item); });
-                     
-                     // Timpa / Tambahkan dengan data lokal (Data dari HP ini)
-                     dataArray.forEach(item => { if (item && item.id) map.set(item.id.toString(), item); });
-                     
-                     finalData = Array.from(map.values());
-                     
-                     // Urutkan kembali
-                     if (key === 'jimpitan' || key === 'absensi') {
-                         finalData.sort((a, b) => b.id - a.id);
-                     } else if (key === 'warga' || key === 'jadwal') {
-                         finalData.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+                             // Hanya merge jika data tidak sedang dihapus (panjang array bertambah atau sama)
+                             if (dataArray.length >= serverData.length) {
+                                 const map = new Map();
+                                 
+                                 // Masukkan data dari server terlebih dahulu (Data dari HP lain)
+                                 serverData.forEach(item => { if (item && item.id) map.set(item.id.toString(), item); });
+                                 
+                                 // Timpa / Tambahkan dengan data lokal (Data dari HP ini)
+                                 dataArray.forEach(item => { if (item && item.id) map.set(item.id.toString(), item); });
+                                 
+                                 finalData = Array.from(map.values());
+                                 
+                                 // Urutkan kembali berdasarkan Timestamp/ID
+                                 if (key === 'jimpitan' || key === 'absensi') {
+                                     finalData.sort((a, b) => b.id - a.id);
+                                 } else if (key === 'warga' || key === 'jadwal') {
+                                     finalData.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+                                 }
+                             }
+                         }
+
+                         // 4. Simpan data yang sudah digabungkan secara utuh
+                         const isSuccess = await window.simpanDataKeSpreadsheet(key, finalData);
+                         
+                         // 5. Update tampilan di HP ini jika mendapat tambahan dari HP lain
+                         if (isSuccess && finalData.length > dataArray.length) {
+                             if (key === 'jimpitan') setJimpitan(finalData);
+                             if (key === 'absensi') setAbsensi(finalData);
+                             if (key === 'warga') setWarga(finalData);
+                             if (key === 'jadwal') setJadwal(finalData);
+                         }
+
+                         resolve(isSuccess);
+                     } catch (error) {
+                         console.error("Gagal melakukan merge sinkronisasi:", error);
+                         // Fallback: Jika ada error jaringan saat merge, tetap paksakan simpan data HP ini
+                         const fallbackSuccess = await window.simpanDataKeSpreadsheet(key, dataArray);
+                         resolve(fallbackSuccess);
                      }
-                 }
-             }
-
-             // 4. Simpan data yang sudah digabungkan secara utuh
-             const isSuccess = await window.simpanDataKeSpreadsheet(key, finalData);
-             
-             // 5. Update tampilan di HP ini jika mendapat tambahan dari HP lain
-             if (isSuccess && finalData.length > dataArray.length) {
-                 if (key === 'jimpitan') setJimpitan(finalData);
-                 if (key === 'absensi') setAbsensi(finalData);
-                 if (key === 'warga') setWarga(finalData);
-                 if (key === 'jadwal') setJadwal(finalData);
-             }
-
-             return isSuccess;
-         } catch (error) {
-             console.error("Gagal melakukan merge sinkronisasi:", error);
-             // Fallback: Jika ada error jaringan saat merge, tetap paksakan simpan data HP ini
-             return await window.simpanDataKeSpreadsheet(key, dataArray);
-         }
+                 })
+                 .catch(err => {
+                     console.error("Queue Sync Catch Error:", err);
+                     resolve(false);
+                 });
+         });
       };
       // -------------------------------------------------------------
-
 
       const showToast = (msg) => {
         setToastMessage(msg);
@@ -2578,12 +2579,10 @@
                </div>
             )}
             
-            {/* HEADER PUBLIK BERWARNA TEMA DENGAN BINGKAI LOGO PUTIH */}
             <header className={`${theme.main} text-white shadow-md sticky top-0 z-50 border-b border-transparent`}>
               <div className="max-w-7xl mx-auto px-4">
                 <div className="flex justify-between items-center py-3 min-h-[80px]">
                   <div className="flex items-center gap-3 sm:gap-4">
-                    {/* BINGKAI PUTIH UNTUK LOGO AGAR WARNA TIDAK MATI */}
                     <div className="bg-white p-1.5 sm:p-2 rounded-xl shadow-md flex items-center justify-center shrink-0">
                       {settings.logoUrl ? (
                          <img src={settings.logoUrl} alt="Logo" className="h-10 sm:h-12 w-auto max-w-[80px] sm:max-w-[120px] object-contain" />
@@ -2591,7 +2590,6 @@
                          <ShieldCheck size={32} className={theme.text} />
                       )}
                     </div>
-                    {/* TEKS RESPONSIP MELIPAT KE BAWAH */}
                     <div className="flex flex-col justify-center min-w-0 max-w-[200px] sm:max-w-md">
                       <h1 className="text-base sm:text-xl font-black leading-tight text-white break-words whitespace-normal">{settings.webName}</h1>
                       <span className="text-[10px] sm:text-xs font-medium opacity-90 leading-snug mt-0.5 text-blue-100 break-words whitespace-normal">{settings.tagline}</span>
@@ -2654,13 +2652,11 @@
 
           {isMobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden print-hide" onClick={() => setIsMobileMenuOpen(false)} />}
           
-          {/* LAYOUT SIDEBAR ADMIN */}
           <aside className={`fixed inset-y-0 left-0 w-64 shadow-xl z-50 transform transition-transform flex flex-col ${ui.sidebar} print-hide 
             ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
             ${isDesktopSidebarOpen ? 'md:static md:translate-x-0' : 'md:hidden md:-translate-x-full'} 
             md:flex-shrink-0`}>
             
-            {/* SIDEBAR HEADER DENGAN BINGKAI LOGO PUTIH */}
             <div className={`p-5 border-b flex items-center gap-3 ${theme.main} text-white`}>
               <div className="bg-white p-1.5 rounded-xl shadow-md flex items-center justify-center shrink-0">
                 {settings.logoUrl ? (
@@ -2701,7 +2697,6 @@
           </aside>
 
           <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            {/* HEADER ADMIN */}
             <header className={`shadow-sm border-b p-4 flex justify-between items-center print-hide ${ui.sidebar}`}>
               <div className="flex items-center gap-3">
                 <button onClick={() => window.innerWidth >= 768 ? setIsDesktopSidebarOpen(!isDesktopSidebarOpen) : setIsMobileMenuOpen(true)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-gray-600 dark:text-gray-300">
