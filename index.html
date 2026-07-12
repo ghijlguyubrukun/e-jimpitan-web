@@ -1,3 +1,13 @@
+<!-- 
+  =========================================================================
+  FILE: Index.html (FRONTEND USER INTERFACE) - VERSI FINAL STABIL
+  - Fix: Mengosongkan kerangka HTML loader untuk mengatasi "Memuat Modul Aplikasi" menembus layar.
+  - Fix: ID Absensi dipertahankan saat di-edit berulang kali agar Riwayat tidak hilang.
+  - Fix: Validasi Edit Laporan Harian membaca String('0') agar input angka 0 bisa tersimpan.
+  - Fix: Algoritma `getUniqueKey` disempurnakan di dalam sistem Sinkronisasi Queue untuk mencegah Duplikasi.
+  - Fitur: Peringatan Spesifik Koordinator melakukan scan ganda dilengkapi nama warga.
+  =========================================================================
+-->
 <!DOCTYPE html>
 <html>
 <head>
@@ -119,7 +129,7 @@
   </style>
 </head>
 <body class="bg-gray-50">
-  <!-- Elemen dikosongkan agar tidak ada text "Memuat Modul" yang tembus saat scroll -->
+  <!-- FIX: Mengosongkan tag root untuk mencegah tulisan "Memuat Modul" overlap saat scroll -->
   <div id="root"></div>
 
   <script type="text/babel">
@@ -230,11 +240,10 @@
                   )}
                 </div>
                 <h1 className="text-2xl font-black">{settings?.webName || 'e-Jimpitan'}</h1>
-                <p className="text-sm text-gray-500 mt-1">{settings?.tagline || 'Dari Warga, Oleh Warga, Untuk Warga'}</p>
+                <p className="text-sm text-gray-500 mt-1">{settings?.tagline || 'Sistem Keuangan Warga'}</p>
               </div>
               <form onSubmit={handleLogin} className="space-y-5">
                 {error && <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm font-semibold animate-fade-in">{error}</div>}
-                
                 <div>
                   <label className="block text-sm font-bold mb-2">Username</label>
                   <input type="text" required className={`w-full p-3 rounded-lg border ${ui?.input || ''}`} value={username} onChange={e => setUsername(e.target.value)} placeholder="Masukkan username..." />
@@ -726,7 +735,6 @@
         const yearStr = dateObj.getFullYear().toString();
 
         const newEntries = Object.keys(absenData).map(wId => {
-          // Fix: mempertahankan ID lama jika data sudah pernah diinput sebelumnya (Edit Absen Mode)
           const existing = absensi.find(a => a.tanggal === inputDate && a.jadwalId === selectedJadwalId && a.wargaId === wId);
           return {
             id: existing ? existing.id : Date.now() + Math.random(),
@@ -1201,7 +1209,7 @@
               const w = warga.find(x => x.id === decodedText.trim().toUpperCase());
               if (w) {
                 if (checkAlreadyPaid(w.id)) {
-                   showToast(`⚠️ NOTIFIKASI: Koordinator mencoba scan ulang. Jimpitan atas nama ${w.nama} SUDAH TERCATAT pada hari ini!`);
+                   showToast(`⚠️ NOTIFIKASI: Koordinator mencoba scan ulang. Jimpitan atas nama ${w.nama} SUDAH TERCATAT!`);
                    stopCamera();
                 } else {
                    setScannedWarga(w);
@@ -1243,7 +1251,7 @@
         const w = warga.find(x => x.id === manualId.toUpperCase());
         if (w) {
           if (checkAlreadyPaid(w.id)) {
-            showToast(`⚠️ NOTIFIKASI: Koordinator mencoba input ulang. Jimpitan atas nama ${w.nama} SUDAH TERCATAT pada hari ini!`);
+            showToast(`⚠️ NOTIFIKASI: Koordinator mencoba scan ulang. Jimpitan atas nama ${w.nama} SUDAH TERCATAT!`);
           } else {
             setScannedWarga(w); 
           }
@@ -1258,7 +1266,7 @@
         
         // PROTEKSI DOUBLE CLICK
         if (checkAlreadyPaid(scannedWarga.id)) {
-            showToast(`⚠️ NOTIFIKASI: Jimpitan atas nama ${scannedWarga.nama} sudah tercatat sebelumnya.`);
+            showToast(`⚠️ NOTIFIKASI: Koordinator mencoba scan ulang. Jimpitan atas nama ${scannedWarga.nama} SUDAH TERCATAT!`);
             setScannedWarga(null);
             setManualId('');
             return;
@@ -1284,7 +1292,7 @@
         syncData("jimpitan", updatedJimpitan);
         setScannedWarga(null); 
         setManualId(''); 
-        showToast('Setoran berhasil dicatat!');
+        showToast('Setoran Rp 500 berhasil dicatat!');
       };
 
       return (
@@ -1361,11 +1369,11 @@
               
               <button 
                 type="button" 
-                onClick={() => handleQuickSave(settings.nominalJimpitan || 500)}
+                onClick={() => handleQuickSave(500)}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-2xl py-6 rounded-xl shadow-xl flex flex-col items-center justify-center gap-2 transform transition hover:scale-105"
               >
                 <CheckSquare size={32} />
-                Rp {Number(settings.nominalJimpitan || 500).toLocaleString('id-ID')}
+                Rp 500
                 <span className="text-sm font-semibold opacity-90 mt-1">Klik untuk Simpan Setoran</span>
               </button>
               
@@ -1572,8 +1580,10 @@
         const editedJimpitan = [];
         const editedAbsensi = [];
         
+        // FIX: Edit Laporan - pastikan nilai nominal 0, kosong, atau desimal bisa terbaca (String Cast)
         editFormData.forEach(d => {
            const nomVal = (d.nominal !== undefined && d.nominal !== null) ? String(d.nominal).trim() : '';
+           
            if (nomVal !== '' && Number(nomVal) >= 0) {
              const existingJ = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === d.wargaId);
              editedJimpitan.push({
@@ -1587,11 +1597,12 @@
              editedAbsensi.push({
                  id: existingA ? existingA.id : Date.now() + Math.random(),
                  tanggal, bulan: monthStr, tahun: yearStr,
-                 jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: existingA ? existingA.isLunas : false
+                 jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
              });
            }
         });
 
+        // FIX: Manual Jimpitan form dari admin - validasi sama menggunakan string trim
         const manualKasVal = (manualJimpitanEdit !== undefined && manualJimpitanEdit !== null) ? String(manualJimpitanEdit).trim() : '';
         if (manualKasVal !== '' && Number(manualKasVal) >= 0 && isAdmin) {
             const existingManual = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === 'KAS-UMUM');
@@ -2429,31 +2440,23 @@
         muatData();
       }, []);
 
-      // --- FITUR BARU: SINKRONISASI ANTI-BENTROK (CONCURRENCY) DENGAN PROMISE QUEUE ---
       const syncData = async (key, dataArray) => {
          return new Promise((resolve) => {
-             // Membuat Antrean (Queue)
              window.syncQueuePromise = (window.syncQueuePromise || Promise.resolve())
                  .then(async () => {
-                     // 1. Jeda Waktu Acak (Jitter): 0.5 hingga 1.5 detik
-                     // Jika HP Koordinator & Anggota klik Save bersamaan, jeda ini memisahkan request mereka 
                      const delay = Math.floor(Math.random() * 1000) + 500;
                      await new Promise(r => setTimeout(r, delay));
 
                      try {
-                         // 2. Ambil data terbaru dari Spreadsheet sebelum menimpa database
                          const dbData = await window.ambilDataDariSpreadsheet();
                          let finalData = dataArray;
 
-                         // 3. Proses Merge (Gabungkan Data)
                          if (dbData && dbData[key]) {
                              const serverData = dbData[key];
 
-                             // Hanya merge jika data tidak sedang dihapus (panjang array bertambah atau sama)
                              if (dataArray.length >= serverData.length) {
                                  const map = new Map();
                                  
-                                 // Fungsi Kunci Komposit untuk mencegah duplikat saat edit / sinkronisasi
                                  const getUniqueKey = (item) => {
                                      if (key === 'jimpitan' && item.tanggal && item.wargaId) {
                                          if (item.wargaId === 'KAS-UMUM') return `KAS_${item.tanggal}_${item.jadwalId}`;
@@ -2465,15 +2468,11 @@
                                      return item.id ? item.id.toString() : Math.random().toString();
                                  };
 
-                                 // Masukkan data dari server terlebih dahulu (Data dari HP lain)
                                  serverData.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
-                                 
-                                 // Timpa / Tambahkan dengan data lokal (Data dari HP ini)
                                  dataArray.forEach(item => { if (item) map.set(getUniqueKey(item), item); });
                                  
                                  finalData = Array.from(map.values());
                                  
-                                 // Urutkan kembali berdasarkan Timestamp/ID
                                  if (key === 'jimpitan' || key === 'absensi') {
                                      finalData.sort((a, b) => b.id - a.id);
                                  } else if (key === 'warga' || key === 'jadwal') {
@@ -2482,10 +2481,8 @@
                              }
                          }
 
-                         // 4. Simpan data yang sudah digabungkan secara utuh
                          const isSuccess = await window.simpanDataKeSpreadsheet(key, finalData);
                          
-                         // 5. Update tampilan di HP ini jika mendapat tambahan dari HP lain
                          if (isSuccess && finalData.length > dataArray.length) {
                              if (key === 'jimpitan') setJimpitan(finalData);
                              if (key === 'absensi') setAbsensi(finalData);
@@ -2495,19 +2492,15 @@
 
                          resolve(isSuccess);
                      } catch (error) {
-                         console.error("Gagal melakukan merge sinkronisasi:", error);
-                         // Fallback: Jika ada error jaringan saat merge, tetap paksakan simpan data HP ini
                          const fallbackSuccess = await window.simpanDataKeSpreadsheet(key, dataArray);
                          resolve(fallbackSuccess);
                      }
                  })
                  .catch(err => {
-                     console.error("Queue Sync Catch Error:", err);
                      resolve(false);
                  });
          });
       };
-      // -------------------------------------------------------------
 
       const showToast = (msg) => {
         setToastMessage(msg);
