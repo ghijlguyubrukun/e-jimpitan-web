@@ -47,9 +47,9 @@
             })
           : dataArrayBaru;
 
-        // 2. Proteksi Timeout 15 Detik
+        // 2. Proteksi Timeout DIPERPANJANG (60 Detik) karena data semakin banyak (Mencegah Abort di tengah jalan)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), 60000); 
 
         // 3. Fetch ke endpoint Google Apps Script
         const response = await fetch(scriptURL, {
@@ -96,8 +96,9 @@
 
     window.ambilDataDariSpreadsheet = async function() {
       try {
+        // PERBAIKAN: Perpanjang waktu tunggu saat load awal menjadi 30 detik
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); 
+        const timeoutId = setTimeout(() => controller.abort(), 30000); 
 
         const response = await fetch(scriptURL, { signal: controller.signal });
         clearTimeout(timeoutId);
