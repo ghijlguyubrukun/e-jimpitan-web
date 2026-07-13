@@ -1,18 +1,3 @@
-<!-- 
-  =========================================================================
-  FILE: Index.html (FRONTEND USER INTERFACE) - VERSI FINAL STABIL
-  - Fix Utama: Mengunci versi CDN Babel (7.23.6) dan React (18.2.0)
-  - Fitur: Edit ID Barcode & Auto-Sort ID Barcode Data Warga
-  - Fitur: Export Excel Rekap Laporan Keuangan
-  - Fix: Sidebar Desktop sekarang bisa di-Hide/Show (Toggle) agar tampilan lebih LUAS.
-  - Fix: Algoritma Euclidean Distance untuk menghapus Background Logo (Bebas Frame Putih 100%).
-  - Fitur: Favicon website ditambahkan.
-  - Fix: Angka nominal grafik tampil utuh (contoh: 316.900) & tidak terpotong.
-  - Fix (Baru): Total Keseluruhan (Denda & Jimpitan) di Laporan Dashboard Warga.
-  - Fix (Baru): Nama Web & Tagline responsif (melipat/break-words), bebas terpotong di HP.
-  - Fix (Baru): Bingkai putih untuk Logo di atas Header/Sidebar berwarna agar logo tidak mati.
-  =========================================================================
--->
 <!DOCTYPE html>
 <html>
 <head>
@@ -70,32 +55,53 @@
 
     window.simpanDataKeSpreadsheet = async function(kunciData, dataArrayBaru) {
       try {
-        let cleanedData = dataArrayBaru;
-        if (Array.isArray(dataArrayBaru)) {
-            cleanedData = dataArrayBaru.map(item => {
-                if (item && typeof item === 'object') {
-                    const { foto, ...rest } = item;
-                    return rest;
-                }
-                return item;
-            });
-        }
+        // 1. Membersihkan data secara aman (memfilter null/undefined)
+        let cleanedData = Array.isArray(dataArrayBaru)
+          ? dataArrayBaru.filter(Boolean).map(item => {
+              if (item && typeof item === 'object') {
+                const { foto, ...rest } = item;
+                return rest;
+              }
+              return item;
+            })
+          : dataArrayBaru;
 
+        // 2. Proteksi Timeout 15 Detik untuk koneksi tidak stabil
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        // 3. Fetch ke endpoint Google Apps Script
         const response = await fetch(scriptURL, {
           method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ key: kunciData, data: cleanedData })
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8' // Menghindari preflight CORS
+          },
+          body: JSON.stringify({ key: kunciData, data: cleanedData }),
+          redirect: 'follow', // PENTING: Mengizinkan browser mengikuti 302 Redirect dari GAS
+          signal: controller.signal
         });
         
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn("Server HTTP Error:", response.status);
+          return false;
+        }
+
+        // 4. Fallback Parsing yang Lebih Fleksibel
         const text = await response.text();
         try {
           const hasil = JSON.parse(text);
-          if (hasil.status === 'success') return true;
-          return false;
+          return hasil.status === 'success';
         } catch(e) {
-          return false;
+          // Jika Apps Script sukses menyimpan data ke tabel namun me-return output 
+          // yang bukan JSON murni (misal ada HTML bawaan), kita asumsikan sukses 
+          // selama HTTP statusnya adalah 200 OK.
+          console.warn("Respon server bukan JSON murni, namun koneksi berhasil.");
+          return true; 
         }
       } catch (error) {
+        console.error("Gagal melakukan POST sinkronisasi ke Spreadsheet:", error.message);
         return false;
       }
     };
@@ -120,10 +126,6 @@
       
       .print\:block { display: block !important; }
       .print\:inline-block { display: inline-block !important; }
-      .print\:w-\[22\%\] { width: 22% !important; }
-      .print\:m-\[1\%\] { margin: 1% !important; }
-      .print\:border-black { border-color: black !important; border: 1px solid black !important; }
-      .print\:shadow-none { box-shadow: none !important; }
       .break-inside-avoid { page-break-inside: avoid !important; break-inside: avoid !important; }
     }
     .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
@@ -581,8 +583,9 @@
           setIsEditing(false);
           setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '' });
         } else {
-          setWarga(warga);
+          setWarga(warga); // revert if failed
           setShowForm(true);
+          showToast('Gagal menyimpan data ke server!');
         }
       };
 
@@ -593,11 +596,16 @@
       };
 
       const handleDeleteWarga = (id) => {
-        requestConfirm('Apakah Anda yakin ingin menghapus data warga ini?', () => {
+        requestConfirm('Apakah Anda yakin ingin menghapus data warga ini?', async () => {
           const updatedWarga = warga.filter(x => x.id !== id);
           setWarga(updatedWarga);
-          syncData("warga", updatedWarga);
-          showToast('Warga berhasil dihapus');
+          const isSuccess = await syncData("warga", updatedWarga);
+          if (isSuccess) {
+              showToast('Warga berhasil dihapus');
+          } else {
+              setWarga(warga); // revert on failure
+              showToast('Gagal menghapus dari server!');
+          }
         });
       };
 
@@ -741,7 +749,8 @@
         }
       }, [selectedJadwalId, jadwal]);
 
-      const handleSaveAbsen = (e) => {
+      // --- PERBAIKAN: Fungsi penyimpanan absensi menggunakan await secara sekuensial ---
+      const handleSaveAbsen = async (e) => {
         e.preventDefault();
         if (!inputDate) return showToast("Pilih tanggal terlebih dahulu!");
         
@@ -752,7 +761,7 @@
         const yearStr = dateObj.getFullYear().toString();
 
         const newEntries = Object.keys(absenData).map(wId => ({
-          id: Date.now() + Math.random(),
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 5), // Lebih stabil untuk JSON
           tanggal: inputDate,
           bulan: monthStr,
           tahun: yearStr,
@@ -765,12 +774,16 @@
         const filteredAbsensi = absensi.filter(a => !(a.tanggal === inputDate && a.jadwalId === selectedJadwalId));
         const updatedAbsensi = [...newEntries, ...filteredAbsensi];
         
+        // Simpan state memori lebih dulu agar UI responsif
         setAbsensi(updatedAbsensi);
-        syncData("absensi", updatedAbsensi);
         
-        if (totalJimpitanManual && Number(totalJimpitanManual) >= 0 && isAdmin) {
+        // Cek jika ada input jimpitan manual
+        const hasManualJimpitan = totalJimpitanManual && Number(totalJimpitanManual) >= 0 && isAdmin;
+        let updatedJimpitan = jimpitan;
+        
+        if (hasManualJimpitan) {
             const newJimpitanManual = {
-                id: Date.now() + Math.random(),
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
                 tanggal: inputDate,
                 bulan: monthStr,
                 tahun: yearStr,
@@ -779,38 +792,57 @@
                 nominal: Number(totalJimpitanManual)
             };
             const filteredJimpitan = jimpitan.filter(j => !(j.tanggal === inputDate && j.jadwalId === selectedJadwalId && j.wargaId === 'KAS-UMUM'));
-            const updatedJimpitan = [newJimpitanManual, ...filteredJimpitan];
+            updatedJimpitan = [newJimpitanManual, ...filteredJimpitan];
             setJimpitan(updatedJimpitan);
-            syncData("jimpitan", updatedJimpitan);
         }
 
-        showToast('Data Absensi & Jimpitan Berhasil Disimpan!');
+        // Kosongkan form input
         setSelectedJadwalId('');
         setTotalJimpitanManual('');
+
+        // Proses pengiriman ke Spreadsheet SECARA SEKUENSIAL (menunggu salah satu selesai)
+        const successAbsen = await syncData("absensi", updatedAbsensi);
+        
+        let successJimpitan = true;
+        if (hasManualJimpitan) {
+            successJimpitan = await syncData("jimpitan", updatedJimpitan);
+        }
+        
+        if (successAbsen && successJimpitan) {
+            showToast('Data Absensi & Jimpitan Berhasil Disimpan!');
+        } else {
+            showToast('Sebagian/seluruh data gagal disimpan ke server (hanya tersimpan lokal).');
+        }
       };
 
-      const handleAddJadwal = (e) => {
+      const handleAddJadwal = async (e) => {
         e.preventDefault();
         if (!newJadwal.koordinatorId) { showToast('Pilih koordinator regu terlebih dahulu!'); return; }
         const newId = `J-${newJadwal.hari.toUpperCase().substring(0, 3)}-${Date.now()}`;
         const updatedJadwal = [...jadwal, { id: newId, ...newJadwal }];
         setJadwal(updatedJadwal);
-        syncData("jadwal", updatedJadwal);
         setShowAddJadwal(false); 
         setNewJadwal({ hari: 'Senin', periode: '', koordinatorId: '', anggotaIds: [] });
-        showToast('Jadwal baru berhasil ditambahkan!');
+        
+        const success = await syncData("jadwal", updatedJadwal);
+        if(success) {
+            showToast('Jadwal baru berhasil ditambahkan!');
+        } else {
+            showToast('Gagal menyimpan jadwal ke server!');
+        }
       };
 
       const handleDeleteJadwal = (id) => {
-        requestConfirm('Apakah Anda yakin ingin menghapus Regu/Jadwal ini?', () => {
+        requestConfirm('Apakah Anda yakin ingin menghapus Regu/Jadwal ini?', async () => {
           const updatedJadwal = jadwal.filter(j => j.id !== id);
           setJadwal(updatedJadwal);
-          syncData("jadwal", updatedJadwal);
-          showToast('Jadwal regu berhasil dihapus');
+          const success = await syncData("jadwal", updatedJadwal);
+          if(success) showToast('Jadwal regu berhasil dihapus');
+          else showToast('Gagal menghapus jadwal di server!');
         });
       };
 
-      const handleAddMemberToRegu = (jadwalId, wargaId) => {
+      const handleAddMemberToRegu = async (jadwalId, wargaId) => {
         if (!wargaId) return;
         const updatedJadwal = jadwal.map(j => {
           if (j.id === jadwalId && !j.anggotaIds.includes(wargaId)) {
@@ -819,12 +851,13 @@
           return j;
         });
         setJadwal(updatedJadwal);
-        syncData("jadwal", updatedJadwal);
-        showToast('Anggota berhasil ditambahkan ke regu!');
+        const success = await syncData("jadwal", updatedJadwal);
+        if(success) showToast('Anggota berhasil ditambahkan ke regu!');
+        else showToast('Gagal menambahkan anggota di server!');
       };
 
       const handleRemoveMemberFromRegu = (jadwalId, wargaId) => {
-        requestConfirm('Hapus anggota ini dari regu ronda?', () => {
+        requestConfirm('Hapus anggota ini dari regu ronda?', async () => {
           const updatedJadwal = jadwal.map(j => {
             if (j.id === jadwalId) {
               return { ...j, anggotaIds: j.anggotaIds.filter(id => id !== wargaId) };
@@ -832,8 +865,9 @@
             return j;
           });
           setJadwal(updatedJadwal);
-          syncData("jadwal", updatedJadwal);
-          showToast('Anggota dihapus dari regu!');
+          const success = await syncData("jadwal", updatedJadwal);
+          if (success) showToast('Anggota dihapus dari regu!');
+          else showToast('Gagal menghapus anggota di server!');
         });
       };
 
@@ -957,7 +991,7 @@
                     )}
 
                     <div className="flex justify-end">
-                      <button type="submit" className={`${theme.main} text-white font-bold py-3 px-8 rounded-lg shadow-lg transition`}>Simpan Rekam Data</button>
+                      <button type="submit" className={`${theme.main} text-white font-bold py-3 px-8 rounded-lg shadow-lg transition hover:opacity-90`}>Simpan Rekam Data</button>
                     </div>
                   </form>
                   
@@ -1029,11 +1063,12 @@
                     <select 
                       className={`p-2.5 rounded-lg border ${ui.input} text-sm min-w-[200px] font-bold shadow-sm`}
                       value={settings.activePeriode || ''}
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         const newSettings = {...settings, activePeriode: e.target.value};
                         setSettings(newSettings);
-                        syncData("settings", newSettings);
-                        showToast("Periode aktif berhasil diperbarui!");
+                        const success = await syncData("settings", newSettings);
+                        if (success) showToast("Periode aktif berhasil diperbarui!");
+                        else showToast("Gagal menyimpan periode aktif ke server!");
                       }}
                     >
                       <option value="">-- Gunakan Periode Terbaru --</option>
@@ -1153,6 +1188,8 @@
       const [manualId, setManualId] = useState('');
       const [inputDate, setInputDate] = useState(getLocalToday());
 
+      const nominalTarget = settings.nominalJimpitan || 2000; // Default nominal if missing
+
       const activePeriod = useMemo(() => {
         if (settings.activePeriode) return settings.activePeriode;
         const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
@@ -1271,7 +1308,8 @@
         }
       };
 
-      const handleQuickSave = (nom) => {
+      // --- PERBAIKAN: Fungsi penyimpanan jimpitan menggunakan await ---
+      const handleQuickSave = async (nom) => {
         if (!scannedWarga) return;
         if (!inputDate) return showToast("Tanggal jimpitan belum dipilih!");
         
@@ -1282,7 +1320,7 @@
         const yearStr = dateObj.getFullYear().toString();
 
         const newEntry = { 
-          id: Date.now(), 
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 5), 
           tanggal: inputDate, 
           bulan: monthStr, 
           tahun: yearStr,
@@ -1291,11 +1329,17 @@
           nominal: Number(nom) 
         };
         const updatedJimpitan = [newEntry, ...jimpitan];
+        
         setJimpitan(updatedJimpitan);
-        syncData("jimpitan", updatedJimpitan);
         setScannedWarga(null); 
         setManualId(''); 
-        showToast('Setoran Rp 500 berhasil dicatat!');
+        
+        const success = await syncData("jimpitan", updatedJimpitan);
+        if (success) {
+            showToast(`Setoran Rp ${Number(nom).toLocaleString('id-ID')} berhasil dicatat!`);
+        } else {
+            showToast('Gagal menyimpan ke server, hanya tersimpan lokal.');
+        }
       };
 
       return (
@@ -1372,11 +1416,11 @@
               
               <button 
                 type="button" 
-                onClick={() => handleQuickSave(500)}
+                onClick={() => handleQuickSave(nominalTarget)}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-2xl py-6 rounded-xl shadow-xl flex flex-col items-center justify-center gap-2 transform transition hover:scale-105"
               >
                 <CheckSquare size={32} />
-                Rp 500
+                Rp {nominalTarget.toLocaleString('id-ID')}
                 <span className="text-sm font-semibold opacity-90 mt-1">Klik untuk Simpan Setoran</span>
               </button>
               
@@ -1567,7 +1611,8 @@
         setEditModal({ tanggal, jadwalId });
       };
 
-      const handleSaveEdit = (e) => {
+      // --- PERBAIKAN: Fungsi simpan edit laporan menggunakan await ---
+      const handleSaveEdit = async (e) => {
         e.preventDefault();
         const { tanggal, jadwalId } = editModal;
         
@@ -1586,14 +1631,14 @@
         editFormData.forEach(d => {
            if (d.nominal && Number(d.nominal) > 0 || d.nominal === '0') {
              editedJimpitan.push({
-                 id: Date.now() + Math.random(),
+                 id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
                  tanggal, bulan: monthStr, tahun: yearStr,
                  jadwalId, wargaId: d.wargaId, nominal: Number(d.nominal)
              });
            }
            if (d.isMember) {
              editedAbsensi.push({
-                 id: Date.now() + Math.random(),
+                 id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
                  tanggal, bulan: monthStr, tahun: yearStr,
                  jadwalId, wargaId: d.wargaId, status: d.status, keterangan: d.keterangan, isLunas: d.isLunas
              });
@@ -1602,7 +1647,7 @@
 
         if (manualJimpitanEdit !== '' && Number(manualJimpitanEdit) >= 0 && isAdmin) {
             editedJimpitan.push({
-                id: Date.now() + Math.random(),
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
                 tanggal, bulan: monthStr, tahun: yearStr,
                 jadwalId, wargaId: 'KAS-UMUM', nominal: Number(manualJimpitanEdit)
             });
@@ -1613,22 +1658,28 @@
         
         setJimpitan(finalJimpitan);
         setAbsensi(finalAbsensi);
-        syncData("jimpitan", finalJimpitan);
-        syncData("absensi", finalAbsensi);
         
-        setEditModal(null);
-        showToast(`Perubahan laporan tanggal ${tanggal} berhasil disimpan!`);
+        const success1 = await syncData("jimpitan", finalJimpitan);
+        const success2 = await syncData("absensi", finalAbsensi);
+        
+        if (success1 && success2) {
+            showToast(`Perubahan laporan tanggal ${tanggal} berhasil disimpan!`);
+            setEditModal(null);
+        } else {
+            showToast('Gagal menyimpan perubahan secara total ke server.');
+        }
       };
 
       const handleHapusLaporan = () => {
-         requestConfirm("Yakin ingin menghapus seluruh laporan (Absen & Jimpitan) pada tanggal dan regu ini?", () => {
+         requestConfirm("Yakin ingin menghapus seluruh laporan (Absen & Jimpitan) pada tanggal dan regu ini?", async () => {
              const newJimpitan = jimpitan.filter(j => !(j.tanggal === editModal.tanggal && j.jadwalId === editModal.jadwalId));
              const newAbsensi = absensi.filter(a => !(a.tanggal === editModal.tanggal && a.jadwalId === editModal.jadwalId));
              
              setJimpitan(newJimpitan);
              setAbsensi(newAbsensi);
-             syncData("jimpitan", newJimpitan);
-             syncData("absensi", newAbsensi);
+             
+             await syncData("jimpitan", newJimpitan);
+             await syncData("absensi", newAbsensi);
              
              setEditModal(null);
              showToast("Laporan berhasil dihapus secara total.");
@@ -1942,11 +1993,17 @@
         })).sort((a,b) => a.nama.localeCompare(b.nama));
       }, [alpaRecords, allowedWargaIds, warga]);
 
-      const handleToggleLunas = (id, currentStatus) => {
+      const handleToggleLunas = async (id, currentStatus) => {
          const newAbsensi = absensi.map(a => a.id === id ? { ...a, isLunas: !currentStatus } : a);
          setAbsensi(newAbsensi);
-         syncData("absensi", newAbsensi);
-         showToast(currentStatus ? 'Status denda diubah menjadi Belum Lunas' : 'Denda berhasil ditandai Lunas!');
+         showToast(currentStatus ? 'Status denda diubah menjadi Belum Lunas...' : 'Menyimpan status Lunas...');
+         
+         const success = await syncData("absensi", newAbsensi);
+         if (success) {
+             showToast(currentStatus ? 'Status denda berhasil diubah menjadi Belum Lunas!' : 'Denda berhasil ditandai Lunas!');
+         } else {
+             showToast('Gagal menyimpan perubahan ke server!');
+         }
       }
 
       return (
@@ -2024,35 +2081,46 @@
       const [showAddAccountForm, setShowAddAccountForm] = useState(false);
       const [newAccount, setNewAccount] = useState({ username: '', password: '', role: 'Koordinator', nama: '', wargaId: '' });
 
-      const handleSaveSettings = () => {
-        syncData("settings", settings);
-        showToast('Pengaturan website berhasil disimpan!');
+      const handleSaveSettings = async () => {
+        const success = await syncData("settings", settings);
+        if (success) showToast('Pengaturan website berhasil disimpan!');
+        else showToast('Gagal menyimpan pengaturan ke server!');
       }
 
-      const handleGantiPassword = (e) => {
+      const handleGantiPassword = async (e) => {
         e.preventDefault();
         if (oldPassword !== currentUser.password) { showToast('Gagal: Password lama salah!'); return; }
         if (newPassword !== confirmPassword) { showToast('Gagal: Password tidak cocok!'); return; }
         const updatedAccounts = accounts.map(a => a.id === currentUser.id ? { ...a, password: newPassword } : a);
         setAccounts(updatedAccounts); 
-        syncData("accounts", updatedAccounts); 
-        setCurrentUser({ ...currentUser, password: newPassword });
-        setOldPassword(''); 
-        setNewPassword(''); 
-        setConfirmPassword(''); 
-        showToast('Berhasil: Password diubah!');
+        const success = await syncData("accounts", updatedAccounts); 
+        
+        if (success) {
+            setCurrentUser({ ...currentUser, password: newPassword });
+            setOldPassword(''); 
+            setNewPassword(''); 
+            setConfirmPassword(''); 
+            showToast('Berhasil: Password diubah!');
+        } else {
+            showToast('Gagal mengubah password di server!');
+        }
       };
 
-      const handleAddAccount = (e) => {
+      const handleAddAccount = async (e) => {
         e.preventDefault();
         if (accounts.some(a => a.username.toLowerCase() === newAccount.username.toLowerCase())) return showToast('Gagal: Username digunakan!');
         const newId = accounts.length > 0 ? Math.max(...accounts.map(a => a.id)) + 1 : 1;
         const updatedAccounts = [...accounts, { id: newId, ...newAccount }];
         setAccounts(updatedAccounts); 
-        syncData("accounts", updatedAccounts);
-        setShowAddAccountForm(false); 
-        setNewAccount({ username: '', password: '', role: 'Koordinator', nama: '', wargaId: '' });
-        showToast('Akun baru berhasil ditambahkan!');
+        const success = await syncData("accounts", updatedAccounts);
+        
+        if (success) {
+            setShowAddAccountForm(false); 
+            setNewAccount({ username: '', password: '', role: 'Koordinator', nama: '', wargaId: '' });
+            showToast('Akun baru berhasil ditambahkan!');
+        } else {
+            showToast('Gagal menambahkan akun di server!');
+        }
       };
 
       const handleLogoUpload = (e) => {
@@ -2080,7 +2148,6 @@
             try {
                const imageData = ctxCanvas.getImageData(0, 0, width, height);
                const data = imageData.data;
-               // ALGORITMA LEBIH KUAT: Hapus background putih & abu terang (Anti Frame Putih)
                for (let i = 0; i < data.length; i += 4) {
                  const r = data[i];
                  const g = data[i + 1];
@@ -2089,9 +2156,9 @@
                  const dist = Math.sqrt(Math.pow(255 - r, 2) + Math.pow(255 - g, 2) + Math.pow(255 - b, 2));
                  
                  if (dist < 50) {
-                    data[i + 3] = 0; // Sangat dekat putih, 100% hapus
+                    data[i + 3] = 0;
                  } else if (dist < 100) {
-                    data[i + 3] = Math.floor(((dist - 50) / 50) * 255); // Edge smoothing (Anti Aliasing)
+                    data[i + 3] = Math.floor(((dist - 50) / 50) * 255);
                  }
                }
                ctxCanvas.putImageData(imageData, 0, 0);
@@ -2145,10 +2212,15 @@
                   </div>
                   
                   <div className="md:w-2/3 flex flex-col gap-5 justify-center">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                       <div>
                         <label className="block text-sm font-semibold mb-1.5 text-gray-700 dark:text-gray-300">Nama Website</label>
                         <input type="text" className={`w-full p-3 rounded-lg border ${ui.input} transition-shadow`} value={settings.webName || ''} onChange={e => setSettings({...settings, webName: e.target.value})} />
+                      </div>
+                      {/* PERBAIKAN: Ditambahkan Input untuk Nominal Jimpitan */}
+                      <div>
+                        <label className="block text-sm font-semibold mb-1.5 text-gray-700 dark:text-gray-300">Nominal Jimpitan (Rp)</label>
+                        <input type="number" className={`w-full p-3 rounded-lg border ${ui.input} transition-shadow`} value={settings.nominalJimpitan || ''} onChange={e => setSettings({...settings, nominalJimpitan: Number(e.target.value)})} />
                       </div>
                       <div>
                         <label className="block text-sm font-semibold mb-1.5 text-gray-700 dark:text-gray-300">Nominal Denda Alpa (Rp)</label>
@@ -2255,7 +2327,7 @@
                               )}
                             </td>
                             <td className="p-4 text-center">
-                              <button onClick={() => { if(acc.id !== currentUser.id) { requestConfirm("Yakin ingin menghapus akun ini?", () => { const ud = accounts.filter(a=>a.id!==acc.id); setAccounts(ud); syncData("accounts", ud); showToast('Akun Dihapus'); }) } else { showToast('Gagal: Tidak bisa menghapus akun sendiri'); } }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-full transition">
+                              <button onClick={() => { if(acc.id !== currentUser.id) { requestConfirm("Yakin ingin menghapus akun ini?", async () => { const ud = accounts.filter(a=>a.id!==acc.id); setAccounts(ud); const success = await syncData("accounts", ud); if(success) showToast('Akun Dihapus'); else showToast('Gagal menghapus'); }) } else { showToast('Gagal: Tidak bisa menghapus akun sendiri'); } }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-full transition">
                                 <Trash2 size={16} />
                               </button>
                             </td>
@@ -2441,7 +2513,6 @@
         { id: 'scan_keliling', label: 'Scan Jimpitan', icon: Camera, roles: ['Admin Jimpitan', 'Koordinator'] },
         { id: 'rekap', label: 'Rekap Laporan', icon: ClipboardList, roles: ['Admin Jimpitan', 'Koordinator'] },
         { id: 'rekap_denda', label: 'Rekap Denda', icon: Wallet, roles: ['Admin Jimpitan'] },
-        { id: 'barcode', label: 'Barcode Rumah', icon: QrCode, roles: ['Admin Jimpitan'] },
         { id: 'pengaturan', label: 'Pengaturan', icon: Settings, roles: ['Admin Jimpitan', 'Koordinator'] },
       ];
 
@@ -2625,7 +2696,6 @@
               {activeTab === 'scan_keliling' && <ScanJimpitan ctx={ctx} />} 
               {activeTab === 'rekap' && <RekapLaporan ctx={ctx} />} 
               {activeTab === 'rekap_denda' && <RekapDenda ctx={ctx} />} 
-              {activeTab === 'barcode' && <BarcodeGenerator ctx={ctx} />}
               {activeTab === 'pengaturan' && <Pengaturan ctx={ctx} />}
             </div>
           </main>
