@@ -94,9 +94,11 @@
           const hasil = JSON.parse(text);
           return hasil.status === 'success';
         } catch(e) {
-          // Jika Apps Script sukses menyimpan data ke tabel namun me-return output 
-          // yang bukan JSON murni (misal ada HTML bawaan), kita asumsikan sukses 
-          // selama HTTP statusnya adalah 200 OK.
+          // PERBAIKAN: Jangan me-return true jika response dari Google berupa halaman Error HTML
+          if (text.toLowerCase().includes("<!doctype html>") || text.toLowerCase().includes("<html")) {
+             console.error("Google Apps Script menolak request (Mungkin bentrok/error).");
+             return false;
+          }
           console.warn("Respon server bukan JSON murni, namun koneksi berhasil.");
           return true; 
         }
@@ -805,6 +807,8 @@
         
         let successJimpitan = true;
         if (hasManualJimpitan) {
+            // PERBAIKAN: Berikan jeda 1.5 detik agar Google Sheets tidak terkunci (Lock Collision) saat menulis 2 tabel berurutan
+            await new Promise(resolve => setTimeout(resolve, 1500));
             successJimpitan = await syncData("jimpitan", updatedJimpitan);
         }
         
@@ -1660,6 +1664,10 @@
         setAbsensi(finalAbsensi);
         
         const success1 = await syncData("jimpitan", finalJimpitan);
+        
+        // PERBAIKAN: Berikan jeda 1.5 detik sebelum menyimpan tabel kedua untuk mencegah error pada Google Sheets
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
         const success2 = await syncData("absensi", finalAbsensi);
         
         if (success1 && success2) {
@@ -1678,11 +1686,19 @@
              setJimpitan(newJimpitan);
              setAbsensi(newAbsensi);
              
-             await syncData("jimpitan", newJimpitan);
-             await syncData("absensi", newAbsensi);
+             const s1 = await syncData("jimpitan", newJimpitan);
              
-             setEditModal(null);
-             showToast("Laporan berhasil dihapus secara total.");
+             // PERBAIKAN: Jeda aman saat menghapus data
+             await new Promise(resolve => setTimeout(resolve, 1500));
+             
+             const s2 = await syncData("absensi", newAbsensi);
+             
+             if(s1 && s2) {
+                 setEditModal(null);
+                 showToast("Laporan berhasil dihapus secara total.");
+             } else {
+                 showToast("Sebagian data gagal dihapus di server.");
+             }
          });
       };
 
