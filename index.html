@@ -25,6 +25,75 @@
   <script>
     const scriptURL = 'https://script.google.com/macros/s/AKfycby8DulHa_EF1FOUTNoM9oPaKW8f1ZZ8f9w6zNenx-2dIx6TjyXWyKKqUlPSpdL_QwwL/exec';
 
+    // SISTEM ANTREAN (QUEUE) GLOBAL: Mencegah bentrok tulis (Collision/Lock) di Spreadsheet
+    window.isSyncing = false;
+    window.syncQueue = [];
+
+    window.processSyncQueue = async function() {
+      if (window.isSyncing || window.syncQueue.length === 0) return;
+      window.isSyncing = true;
+      
+      const { kunciData, dataArrayBaru, resolve } = window.syncQueue.shift();
+      
+      try {
+        // 1. Membersihkan data secara aman
+        let cleanedData = Array.isArray(dataArrayBaru)
+          ? dataArrayBaru.filter(Boolean).map(item => {
+              if (item && typeof item === 'object') {
+                const { foto, ...rest } = item;
+                return rest;
+              }
+              return item;
+            })
+          : dataArrayBaru;
+
+        // 2. Proteksi Timeout 15 Detik
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        // 3. Fetch ke endpoint Google Apps Script
+        const response = await fetch(scriptURL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8' 
+          },
+          body: JSON.stringify({ key: kunciData, data: cleanedData }),
+          redirect: 'follow', 
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn("Server HTTP Error:", response.status);
+          resolve(false);
+        } else {
+          // 4. Fallback Parsing
+          const text = await response.text();
+          try {
+            const hasil = JSON.parse(text);
+            resolve(hasil.status === 'success');
+          } catch(e) {
+            if (text.toLowerCase().includes("<!doctype html>") || text.toLowerCase().includes("<html")) {
+               console.error("Google Apps Script menolak request (Mungkin bentrok/error).");
+               resolve(false);
+            } else {
+               resolve(true); 
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Gagal POST ke Spreadsheet:", error.message);
+        resolve(false);
+      }
+      
+      // JEDA AMAN 2.5 DETIK: Memastikan proses Clear & SetValues di Google selesai total sebelum antrean berikutnya jalan
+      setTimeout(() => {
+        window.isSyncing = false;
+        window.processSyncQueue();
+      }, 2500);
+    };
+
     window.ambilDataDariSpreadsheet = async function() {
       try {
         const controller = new AbortController();
@@ -53,59 +122,11 @@
       }
     };
 
-    window.simpanDataKeSpreadsheet = async function(kunciData, dataArrayBaru) {
-      try {
-        // 1. Membersihkan data secara aman (memfilter null/undefined)
-        let cleanedData = Array.isArray(dataArrayBaru)
-          ? dataArrayBaru.filter(Boolean).map(item => {
-              if (item && typeof item === 'object') {
-                const { foto, ...rest } = item;
-                return rest;
-              }
-              return item;
-            })
-          : dataArrayBaru;
-
-        // 2. Proteksi Timeout 15 Detik untuk koneksi tidak stabil
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-        // 3. Fetch ke endpoint Google Apps Script
-        const response = await fetch(scriptURL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8' // Menghindari preflight CORS
-          },
-          body: JSON.stringify({ key: kunciData, data: cleanedData }),
-          redirect: 'follow', // PENTING: Mengizinkan browser mengikuti 302 Redirect dari GAS
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          console.warn("Server HTTP Error:", response.status);
-          return false;
-        }
-
-        // 4. Fallback Parsing yang Lebih Fleksibel
-        const text = await response.text();
-        try {
-          const hasil = JSON.parse(text);
-          return hasil.status === 'success';
-        } catch(e) {
-          // PERBAIKAN: Jangan me-return true jika response dari Google berupa halaman Error HTML
-          if (text.toLowerCase().includes("<!doctype html>") || text.toLowerCase().includes("<html")) {
-             console.error("Google Apps Script menolak request (Mungkin bentrok/error).");
-             return false;
-          }
-          console.warn("Respon server bukan JSON murni, namun koneksi berhasil.");
-          return true; 
-        }
-      } catch (error) {
-        console.error("Gagal melakukan POST sinkronisasi ke Spreadsheet:", error.message);
-        return false;
-      }
+    window.simpanDataKeSpreadsheet = function(kunciData, dataArrayBaru) {
+      return new Promise((resolve) => {
+        window.syncQueue.push({ kunciData, dataArrayBaru, resolve });
+        window.processSyncQueue();
+      });
     };
   </script>
 
@@ -802,13 +823,11 @@
         setSelectedJadwalId('');
         setTotalJimpitanManual('');
 
-        // Proses pengiriman ke Spreadsheet SECARA SEKUENSIAL (menunggu salah satu selesai)
+        // Proses pengiriman ke Spreadsheet SEKARANG DIATUR OLEH ANTREAN GLOBAL OTOMATIS
         const successAbsen = await syncData("absensi", updatedAbsensi);
         
         let successJimpitan = true;
         if (hasManualJimpitan) {
-            // PERBAIKAN: Berikan jeda 1.5 detik agar Google Sheets tidak terkunci (Lock Collision) saat menulis 2 tabel berurutan
-            await new Promise(resolve => setTimeout(resolve, 1500));
             successJimpitan = await syncData("jimpitan", updatedJimpitan);
         }
         
@@ -1664,10 +1683,6 @@
         setAbsensi(finalAbsensi);
         
         const success1 = await syncData("jimpitan", finalJimpitan);
-        
-        // PERBAIKAN: Berikan jeda 1.5 detik sebelum menyimpan tabel kedua untuk mencegah error pada Google Sheets
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
         const success2 = await syncData("absensi", finalAbsensi);
         
         if (success1 && success2) {
@@ -1687,10 +1702,6 @@
              setAbsensi(newAbsensi);
              
              const s1 = await syncData("jimpitan", newJimpitan);
-             
-             // PERBAIKAN: Jeda aman saat menghapus data
-             await new Promise(resolve => setTimeout(resolve, 1500));
-             
              const s2 = await syncData("absensi", newAbsensi);
              
              if(s1 && s2) {
