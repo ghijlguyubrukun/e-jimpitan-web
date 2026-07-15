@@ -22,6 +22,9 @@
   <script src="https://unpkg.com/lucide@0.344.0"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
 
+  <!-- QRCode.js untuk generate Barcode QR -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
   <script>
     const scriptURL = 'https://script.google.com/macros/s/AKfycbxM33tM3kBw_Z6dl2kRc5Mv70OIZ8XPothhTGCO_kgl1lDJaB1cmUzD3TSqSt_YVA1G/exec';
 
@@ -205,11 +208,12 @@
     const Edit = (p) => <LucideIcon name="edit" {...p} />;
     const ImageIcon = (p) => <LucideIcon name="image" {...p} />;
     const Wallet = (p) => <LucideIcon name="wallet" {...p} />;
+    const Printer = (p) => <LucideIcon name="printer" {...p} />; // Icon untuk cetak barcode
 
     const initialWarga = [
-      { id: 'H-01', nama: 'Budi Santoso', alamat: 'Blok H No 1', hp: '08123456789' },
-      { id: 'H-02', nama: 'Andi Pratama', alamat: 'Blok H No 2', hp: '08123456780' },
-      { id: 'G-01', nama: 'Siti Aminah', alamat: 'Blok G No 1', hp: '08129876543' }
+      { id: 'H-01', nama: 'Budi Santoso', alamat: 'Blok H No 1', hp: '08123456789', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni' },
+      { id: 'H-02', nama: 'Andi Pratama', alamat: 'Blok H No 2', hp: '08123456780', statusWarga: 'Kontrak', ketRumah: 'Ada Penghuni' },
+      { id: 'G-01', nama: 'Siti Aminah', alamat: 'Blok G No 1', hp: '08129876543', statusWarga: 'Kosong', ketRumah: 'Rumah Kosong' }
     ];
     const initialJadwal = [
       { id: 'J-SEN', hari: 'Senin', periode: 'Bulan Juni - Agustus 2026', koordinatorId: 'H-01', anggotaIds: ['H-02'] }
@@ -549,7 +553,7 @@
       const [showForm, setShowForm] = useState(false);
       const [isEditing, setIsEditing] = useState(false);
       
-      const [newWarga, setNewWarga] = useState({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '' });
+      const [newWarga, setNewWarga] = useState({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni' });
 
       const handleAddWarga = async (e) => {
         e.preventDefault();
@@ -563,13 +567,13 @@
             showToast(`PERINGATAN: ID Barcode "${idCustom}" sudah dipakai oleh warga lain!`);
             return;
           }
-          updatedWarga = warga.map(w => w.id === newWarga.oldId ? { ...w, id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp } : w);
+          updatedWarga = warga.map(w => w.id === newWarga.oldId ? { ...w, id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp, statusWarga: newWarga.statusWarga, ketRumah: newWarga.ketRumah } : w);
         } else {
           if(warga.some(w => w.id === idCustom)) {
             showToast(`PERINGATAN: ID Barcode "${idCustom}" sudah dipakai oleh warga lain!`);
             return;
           }
-          updatedWarga = [...warga, { id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp }];
+          updatedWarga = [...warga, { id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp, statusWarga: newWarga.statusWarga, ketRumah: newWarga.ketRumah }];
         }
         
         updatedWarga.sort((a, b) => a.id.localeCompare(b.id));
@@ -580,14 +584,14 @@
         if (isSuccess) {
           showToast(isEditing ? 'Data warga berhasil diperbarui!' : 'Data warga berhasil ditambahkan!');
           setIsEditing(false);
-          setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '' });
+          setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni' });
         } else {
           showToast('Gagal menyimpan ke server, namun data tersimpan di lokal (browser).');
         }
       };
 
       const handleEditClick = (w) => {
-        setNewWarga({ oldId: w.id, idBaru: w.id, nama: w.nama, alamat: w.alamat, hp: w.hp });
+        setNewWarga({ oldId: w.id, idBaru: w.id, nama: w.nama, alamat: w.alamat, hp: w.hp, statusWarga: w.statusWarga || 'Penghuni Tetap', ketRumah: w.ketRumah || 'Ada Penghuni' });
         setIsEditing(true);
         setShowForm(true);
       };
@@ -609,14 +613,14 @@
         <div className="space-y-6 animate-fade-in">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold">Data Warga & Tim Ronda</h2>
-            <button onClick={() => { setShowForm(!showForm); setIsEditing(false); setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '' }); }} className={`${theme.main} text-white px-4 py-2 rounded-lg shadow hover:opacity-90 flex items-center gap-2`}>
+            <button onClick={() => { setShowForm(!showForm); setIsEditing(false); setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni' }); }} className={`${theme.main} text-white px-4 py-2 rounded-lg shadow hover:opacity-90 flex items-center gap-2`}>
               {showForm ? <X size={18} /> : <Plus size={18} />} {showForm ? 'Batal' : 'Tambah Warga'}
             </button>
           </div>
           
           {showForm && (
             <form onSubmit={handleAddWarga} className={`${ui.card} p-6 rounded-xl animate-fade-in border-l-4 border-l-${theme.text.split('-')[1]}-500`}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-1">ID Barcode (Cth: H-02, G-01)</label>
                   <input required type="text" className={`w-full p-2.5 rounded-lg border ${ui.input} uppercase`} value={newWarga.idBaru} onChange={e => setNewWarga({...newWarga, idBaru: e.target.value})} placeholder="Blok & No Rumah" />
@@ -630,6 +634,21 @@
                   <input required type="tel" className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newWarga.hp} onChange={e => setNewWarga({...newWarga, hp: e.target.value})} />
                 </div>
                 <div>
+                  <label className="block text-sm font-semibold mb-1">Status Warga</label>
+                  <select className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newWarga.statusWarga} onChange={e => setNewWarga({...newWarga, statusWarga: e.target.value})}>
+                    <option value="Penghuni Tetap">Penghuni Tetap</option>
+                    <option value="Kontrak">Kontrak / Sewa</option>
+                    <option value="Kosong">Kosong</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Keterangan Rumah</label>
+                  <select className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newWarga.ketRumah} onChange={e => setNewWarga({...newWarga, ketRumah: e.target.value})}>
+                    <option value="Ada Penghuni">Ada Penghuni</option>
+                    <option value="Rumah Kosong">Rumah Kosong</option>
+                  </select>
+                </div>
+                <div className="lg:col-span-1 md:col-span-2">
                   <label className="block text-sm font-semibold mb-1">Alamat Lengkap</label>
                   <input required type="text" className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newWarga.alamat} onChange={e => setNewWarga({...newWarga, alamat: e.target.value})} />
                 </div>
@@ -647,7 +666,7 @@
                     <th className="p-4">ID Barcode</th>
                     <th className="p-4">Nama Lengkap</th>
                     <th className="p-4">Alamat Rumah</th>
-                    <th className="p-4">No. HP</th>
+                    <th className="p-4">Status & Keterangan</th>
                     <th className="p-4 text-center">Aksi</th>
                   </tr>
                 </thead>
@@ -659,8 +678,20 @@
                       <td className="p-4 font-semibold flex items-center gap-2">
                         <UserCircle size={18} className="text-gray-400" /> {w.nama}
                       </td>
-                      <td className="p-4">{w.alamat}</td>
-                      <td className="p-4">{w.hp}</td>
+                      <td className="p-4">
+                        <div>{w.alamat}</div>
+                        <div className="text-xs text-gray-500 mt-1">{w.hp}</div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase ${w.statusWarga === 'Kontrak' ? 'bg-orange-100 text-orange-700' : w.statusWarga === 'Kosong' ? 'bg-gray-100 text-gray-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {w.statusWarga || 'Penghuni Tetap'}
+                          </span>
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase ${w.ketRumah === 'Rumah Kosong' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {w.ketRumah || 'Ada Penghuni'}
+                          </span>
+                        </div>
+                      </td>
                       <td className="p-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <button className="text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-2 rounded-full transition" onClick={() => handleEditClick(w)} title="Edit Warga">
@@ -676,6 +707,62 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      );
+    };
+
+    const QRCodeItem = ({ id, nama, theme }) => {
+      const qrRef = useRef(null);
+
+      useEffect(() => {
+        if (qrRef.current && window.QRCode) {
+          qrRef.current.innerHTML = ""; 
+          new window.QRCode(qrRef.current, {
+            text: id,
+            width: 100,
+            height: 100,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : window.QRCode.CorrectLevel.H
+          });
+        }
+      }, [id]);
+
+      return (
+        <div className="border border-gray-300 dark:border-gray-600 p-4 rounded-xl text-center flex flex-col items-center justify-center bg-white dark:bg-gray-800 shadow-sm break-inside-avoid print:shadow-none print:border-black">
+          <p className="font-bold text-xs mb-3 text-gray-800 dark:text-gray-200 print:text-black line-clamp-1" title={nama}>{nama}</p>
+          <div ref={qrRef} className="w-full flex justify-center"></div>
+          <p className="mt-3 text-[10px] font-mono font-bold text-gray-500">{id}</p>
+        </div>
+      );
+    };
+
+    const CetakBarcode = ({ ctx }) => {
+      const { warga, theme, ui } = ctx;
+
+      return (
+        <div className="space-y-6 animate-fade-in print-content">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print-hide">
+            <div>
+              <h2 className="text-2xl font-bold">Cetak Barcode QR</h2>
+              <p className="text-sm text-gray-500">Cetak barcode QR untuk ditempel di kotak jimpitan rumah masing-masing warga.</p>
+            </div>
+            <button onClick={() => window.print()} className={`${theme.main} text-white px-4 py-2 rounded-lg shadow hover:opacity-90 flex items-center gap-2 transition`}>
+              <Printer size={18} /> Cetak (PDF/Print)
+            </button>
+          </div>
+
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 rounded-lg print-hide">
+            <p className="text-sm text-blue-800 dark:text-blue-300 flex items-center gap-2">
+              <AlertCircle size={16}/> Tips: Saat mencetak, pastikan opsi "Background graphics" diaktifkan agar barcode tercetak dengan baik.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 print:grid-cols-4 print:gap-2">
+            {warga.map(w => (
+              <QRCodeItem key={w.id} id={w.id} nama={w.nama} theme={theme} />
+            ))}
           </div>
         </div>
       );
@@ -2499,9 +2586,11 @@
       const userRole = isPublicView ? 'Publik' : currentUser?.role;
       const isAdmin = currentUser?.role === 'Admin Jimpitan';
 
+      // Menambahkan menu cetak barcode
       const allMenuItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin Jimpitan', 'Koordinator', 'Publik'] },
         { id: 'warga', label: 'Data Warga', icon: Users, roles: ['Admin Jimpitan'] },
+        { id: 'cetak_barcode', label: 'Cetak Barcode QR', icon: QrCode, roles: ['Admin Jimpitan'] },
         { id: 'jadwal_absen', label: 'Jadwal & Absen', icon: CalendarDays, roles: ['Admin Jimpitan', 'Koordinator'] },
         { id: 'scan_keliling', label: 'Scan Jimpitan', icon: Camera, roles: ['Admin Jimpitan', 'Koordinator'] },
         { id: 'rekap', label: 'Rekap Laporan', icon: ClipboardList, roles: ['Admin Jimpitan', 'Koordinator'] },
@@ -2679,6 +2768,7 @@
             <div className="flex-1 overflow-y-auto p-4 md:p-8">
               {activeTab === 'dashboard' && <Dashboard ctx={ctx} />} 
               {activeTab === 'warga' && <DataWarga ctx={ctx} />} 
+              {activeTab === 'cetak_barcode' && <CetakBarcode ctx={ctx} />} 
               {activeTab === 'jadwal_absen' && <JadwalDanAbsen ctx={ctx} />}
               {activeTab === 'scan_keliling' && <ScanJimpitan ctx={ctx} />} 
               {activeTab === 'rekap' && <RekapLaporan ctx={ctx} />} 
