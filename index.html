@@ -153,6 +153,26 @@
       return new Date(Date.now() - tzOffset).toISOString().split('T')[0];
     };
 
+    // Helper konversi badge otomatis dari Data Warga
+    const getStatusWargaBadge = (status) => {
+      const s = (status || '').toString().toLowerCase();
+      if (s.includes('tetap')) {
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700">TETAP</span>;
+      }
+      if (s.includes('kontrak') || s.includes('sewa')) {
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700">KONTRAK</span>;
+      }
+      return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-gray-200 text-gray-700">KOSONG</span>;
+    };
+
+    const getKetRumahBadge = (ket) => {
+      const k = (ket || '').toString().toLowerCase();
+      if ((k.includes('ada') || k.includes('isi') || k.includes('penghuni')) && !k.includes('kosong') && !k.includes('tidak')) {
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">ISI</span>;
+      }
+      return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700">KOSONG</span>;
+    };
+
     const LucideIcon = ({ name, size = 24, className = "" }) => {
       const spanRef = useRef(null);
       useEffect(() => {
@@ -504,33 +524,30 @@
           )}
 
           {isPublicView && (
-            <div className={`${ui.card} p-4 sm:p-6 rounded-xl mt-6`}>
-              <h3 className="text-base sm:text-lg font-semibold mb-4">Laporan Transparansi Keuangan Warga</h3>
+            <div className={`${ui.card} p-3 sm:p-6 rounded-xl mt-6`}>
+              <h3 className="text-base sm:text-lg font-semibold mb-4">Laporan Transparansi Ronda Warga</h3>
               <div className="overflow-x-auto no-scrollbar">
-                <table className="w-full text-left border-collapse text-[11px] sm:text-sm">
+                <table className="w-full text-left border-collapse text-xs sm:text-sm">
                   <thead>
                     <tr className={`${ui.tableHead} border-b`}>
-                      <th className="p-2 sm:p-4 font-bold whitespace-nowrap">Nama & Status</th>
-                      <th className="p-2 sm:p-4 text-center font-bold whitespace-nowrap">Hadir</th>
-                      <th className="p-2 sm:p-4 text-center text-red-500 font-bold whitespace-nowrap">Alpa</th>
-                      <th className="p-2 sm:p-4 text-right text-red-500 font-bold whitespace-nowrap">Denda</th>
-                      <th className="p-2 sm:p-4 text-right text-emerald-600 font-bold whitespace-nowrap">Jimpitan ({currentMonthDisplay})</th>
+                      <th className="p-2 sm:p-4 font-bold whitespace-nowrap">Nama & Status Warga</th>
+                      <th className="p-2 sm:p-4 text-center font-bold whitespace-nowrap text-gray-700 dark:text-gray-300">Hadir</th>
+                      <th className="p-2 sm:p-4 text-center font-bold whitespace-nowrap text-red-500">Alpa</th>
+                      <th className="p-2 sm:p-4 text-right font-bold whitespace-nowrap text-red-500">Denda</th>
+                      <th className="p-2 sm:p-4 text-right font-bold whitespace-nowrap text-emerald-600">Jimpitan ({currentMonthDisplay})</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rekapWarga.map((r, i) => (
                       <tr key={i} className={`border-b ${ui.tableRow}`}>
                         <td className="p-2 sm:p-4">
-                          <div className="font-bold text-gray-800 dark:text-gray-200 truncate max-w-[140px] sm:max-w-[200px]" title={r.nama}>
+                          <div className="font-bold text-gray-800 dark:text-gray-200 leading-tight min-w-[100px]" title={r.nama}>
                             {r.nama}
                           </div>
                           <div className="flex flex-wrap gap-1 mt-1.5">
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] sm:text-[10px] font-bold uppercase tracking-wider ${r.statusWarga === 'Kontrak' ? 'bg-orange-100 text-orange-700' : r.statusWarga === 'Kosong' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
-                              {r.statusWarga === 'Penghuni Tetap' ? 'TETAP' : r.statusWarga === 'Kontrak' ? 'KONTRAK' : 'KOSONG'}
-                            </span>
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] sm:text-[10px] font-bold uppercase tracking-wider ${r.ketRumah === 'Rumah Kosong' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                              {r.ketRumah === 'Rumah Kosong' ? 'RUMAH KOSONG' : 'ADA PENGHUNI'}
-                            </span>
+                            {/* Memanggil Helper Badge yang baru saja kita pasang */}
+                            {getStatusWargaBadge(r.statusWarga || 'Penghuni Tetap')}
+                            {getKetRumahBadge(r.ketRumah || 'Ada Penghuni')}
                           </div>
                         </td>
                         <td className="p-2 sm:p-4 text-center font-medium text-gray-600 dark:text-gray-300">{r.hadir}x</td>
@@ -2535,7 +2552,11 @@
               const cleanWarga = rawWarga.map(w => {
                  if (w && typeof w === 'object') {
                     const { foto, ...rest } = w;
-                    return rest;
+                    return {
+                      statusWarga: 'Penghuni Tetap',
+                      ketRumah: 'Ada Penghuni',
+                      ...rest
+                    };
                  }
                  return w;
               });
