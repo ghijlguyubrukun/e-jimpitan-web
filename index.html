@@ -486,40 +486,68 @@
           </div>
 
           {(isPublicView || isAdmin) && (
-            <div className={`${ui.card} p-6 rounded-xl mt-6`}>
-              <h3 className="text-lg font-semibold mb-4">Daftar Regu Aktif & Koordinator</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className={`${ui.tableHead} border-b text-sm`}>
-                      <th className="p-4">Hari / Jadwal</th>
-                      <th className="p-4">Koordinator</th>
-                      <th className="p-4">Anggota Regu</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeJadwal.map(j => (
-                      <tr key={j.id} className={`border-b ${ui.tableRow}`}>
-                        <td className="p-4 font-bold">
-                          {j.hari} <span className="text-xs font-normal bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded ml-2">{j.periode}</span>
-                        </td>
-                        <td className="p-4 flex items-center gap-2">
-                          <UserCircle size={20} className="text-gray-400" />
-                          {getWargaName(j.koordinatorId)}
-                        </td>
-                        <td className="p-4 text-sm text-gray-500 dark:text-gray-400">
-                          {j.anggotaIds.map(id => getWargaName(id)).join(', ')}
-                        </td>
-                      </tr>
-                    ))}
-                    {activeJadwal.length === 0 && (
-                      <tr>
-                        <td colSpan="3" className="p-4 text-center text-sm text-gray-500">Belum ada regu pada periode ini.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+            <div className="mt-8 mb-4">
+              <div className="flex items-center gap-3 mb-6">
+                <div className={`p-2 rounded-lg ${theme.light} ${theme.text} print-hide`}>
+                  <CalendarDays size={24} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">Daftar Regu Aktif & Koordinator</h3>
               </div>
+              
+              {activeJadwal.length === 0 ? (
+                <div className={`${ui.card} p-8 rounded-xl text-center border border-dashed border-gray-300 dark:border-gray-700`}>
+                  <CalendarDays size={48} className="mx-auto text-gray-400 mb-3 opacity-50" />
+                  <p className="text-gray-500 font-medium">Belum ada regu yang dijadwalkan pada periode ini.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {activeJadwal.map(j => (
+                    <div key={j.id} className={`${ui.card} relative overflow-hidden rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-300 group`}>
+                      {/* Aksen Garis Warna di Atas Kotak */}
+                      <div className={`h-1.5 w-full ${theme.main}`}></div>
+                      
+                      <div className="p-5">
+                        <div className="flex justify-between items-start mb-5">
+                          <div>
+                            <h4 className="text-lg font-black text-gray-800 dark:text-gray-100">Ronda Hari {j.hari}</h4>
+                            <span className="inline-block mt-1 text-[10px] font-bold tracking-wider uppercase bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded">
+                              Periode: {j.periode}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          {/* Kotak Khusus Koordinator */}
+                          <div className={`bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800/50`}>
+                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider block mb-1">Koordinator Regu</span>
+                            <div className="flex items-center gap-2 font-bold text-gray-800 dark:text-gray-200 text-sm">
+                              <CheckCircle size={16} className="text-blue-500" />
+                              {getWargaName(j.koordinatorId)}
+                            </div>
+                          </div>
+                          
+                          {/* Daftar Anggota dengan Desain Chips/Badge */}
+                          <div>
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-2">Anggota Regu ({j.anggotaIds.length} Orang)</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {j.anggotaIds.length > 0 ? (
+                                j.anggotaIds.map(id => (
+                                  <span key={id} className="flex items-center gap-1.5 text-[11px] font-medium bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2.5 py-1.5 rounded-md text-gray-700 dark:text-gray-300">
+                                    <UserCircle size={12} className="opacity-60" />
+                                    {getWargaName(id)}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-xs text-gray-400 italic font-medium bg-gray-50 dark:bg-gray-800 px-3 py-1 rounded-md border border-gray-100 dark:border-gray-700">Belum ada anggota ditambahkan</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
