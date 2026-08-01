@@ -26,27 +26,24 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <script>
+    // URL WEB APP BARU SUDAH DISISIPKAN DI SINI
     const scriptURL = 'https://script.google.com/macros/s/AKfycbxM33tM3kBw_Z6dl2kRc5Mv70OIZ8XPothhTGCO_kgl1lDJaB1cmUzD3TSqSt_YVA1G/exec';
 
-    // PERBAIKAN: Fungsi simpan data dibuat LANGSUNG tanpa antrean (queue) dan tanpa delay setTimeout
     window.simpanDataKeSpreadsheet = async function(kunciData, dataArrayBaru) {
       try {
-        // 1. Membersihkan data secara aman
         let cleanedData = Array.isArray(dataArrayBaru)
           ? dataArrayBaru.filter(Boolean).map(item => {
               if (item && typeof item === 'object') {
-                const { foto, ...rest } = item; // buang atribut yang bikin berat
+                const { foto, ...rest } = item; 
                 return rest;
               }
               return item;
             })
           : dataArrayBaru;
 
-        // 2. Proteksi Timeout standar 30 detik (tidak perlu sampai 120 detik)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); 
 
-        // 3. Fetch LANGSUNG ke endpoint Google Apps Script
         const response = await fetch(scriptURL, {
           method: 'POST',
           headers: {
@@ -62,14 +59,11 @@
         if (!response.ok) {
            throw new Error(`HTTP Error Status: ${response.status}`);
         } else {
-          // 4. Cek respons
           const text = await response.text();
           try {
             const hasil = JSON.parse(text);
-            return hasil.status === 'success'; // Kembalikan true jika sukses
+            return hasil.status === 'success'; 
           } catch(e) {
-            // Fallback: Jika Apps Script merespon dengan HTML (biasanya halaman sukses bawaan google), 
-            // kita anggap sukses karena HTTP statusnya 200 OK.
             if (text.toLowerCase().includes("<!doctype html>") || text.toLowerCase().includes("<html")) {
                console.warn("Menerima HTML dari GAS, tapi status 200 OK. Dianggap sukses.");
                return true;
@@ -83,12 +77,11 @@
       }
     };
 
-    // PERBAIKAN: Fungsi ambil data disederhanakan agar lebih cepat dan tidak nyangkut
     window.ambilDataDariSpreadsheet = async function(retries = 2) {
       for (let i = 0; i < retries; i++) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 detik batas toleransi loading
+          const timeoutId = setTimeout(() => controller.abort(), 15000);
 
           const response = await fetch(scriptURL, { signal: controller.signal });
           clearTimeout(timeoutId);
@@ -106,7 +99,6 @@
         } catch (error) {
           console.warn(`Gagal memuat data (Percobaan ${i + 1}):`, error.message);
           if (i === retries - 1) return null;
-          // Jeda singkat 1 detik sebelum coba ulang loading awal
           await new Promise(res => setTimeout(res, 1000));
         }
       }
@@ -208,7 +200,7 @@
     const Edit = (p) => <LucideIcon name="edit" {...p} />;
     const ImageIcon = (p) => <LucideIcon name="image" {...p} />;
     const Wallet = (p) => <LucideIcon name="wallet" {...p} />;
-    const Printer = (p) => <LucideIcon name="printer" {...p} />; // Icon untuk cetak barcode
+    const Printer = (p) => <LucideIcon name="printer" {...p} />; 
 
     const initialWarga = [
       { id: 'H-01', nama: 'Budi Santoso', alamat: 'Blok H No 1', hp: '08123456789', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni' },
@@ -293,28 +285,28 @@
       
       const activePeriod = useMemo(() => {
         if (settings.activePeriode) return settings.activePeriode;
-        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
+        const allPeriods = [...new Set(jadwal.map(x => x && x.periode).filter(Boolean))];
         return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
       }, [jadwal, settings.activePeriode]);
 
       const activeJadwal = useMemo(() => {
-        return jadwal.filter(j => !activePeriod || j.periode === activePeriod);
+        return jadwal.filter(j => j && (!activePeriod || j.periode === activePeriod));
       }, [jadwal, activePeriod]);
 
       const myJadwalIds = isAdmin || isPublicView 
         ? activeJadwal.map(j => j.id) 
-        : activeJadwal.filter(j => j.koordinatorId === currentUser?.wargaId).map(j => j.id);
+        : activeJadwal.filter(j => j && j.koordinatorId === currentUser?.wargaId).map(j => j.id);
       
       const filteredAbsensi = isAdmin || isPublicView 
         ? absensi 
-        : absensi.filter(a => myJadwalIds.includes(a.jadwalId));
+        : absensi.filter(a => a && myJadwalIds.includes(a.jadwalId));
       
-      const totalJimpitan = jimpitan.reduce((sum, item) => sum + Number(item.nominal), 0);
-      
-      const totalDenda = absensi.filter(a => a.status === 'Alpa' && !a.isLunas).length * (settings.nominalDenda || 0);
+      // Total Keseluruhan (Akumulasi sepanjang waktu) untuk Card Teratas
+      const totalJimpitan = jimpitan.reduce((sum, item) => sum + (item ? Number(item.nominal) || 0 : 0), 0);
+      const totalDenda = absensi.filter(a => a && a.status === 'Alpa' && !a.isLunas).length * (settings.nominalDenda || 0);
 
       const availableYears = useMemo(() => {
-        const years = [...new Set(jimpitan.map(j => j.tahun))].filter(Boolean).sort().reverse();
+        const years = [...new Set(jimpitan.map(j => j && j.tahun))].filter(Boolean).sort().reverse();
         if (years.length === 0) return [new Date().getFullYear().toString()];
         return years;
       }, [jimpitan]);
@@ -327,7 +319,7 @@
         monthNames.forEach(m => dataMap[m] = 0);
         
         jimpitan.forEach(curr => {
-          if (curr.tahun === chartYear && dataMap[curr.bulan] !== undefined) {
+          if (curr && curr.tahun === chartYear && dataMap[curr.bulan] !== undefined) {
             dataMap[curr.bulan] += Number(curr.nominal) || 0;
           }
         });
@@ -339,7 +331,7 @@
 
       const absenStats = useMemo(() => {
         const stats = { Hadir: 0, Sakit: 0, Izin: 0, Kerja: 0, Alpa: 0 };
-        filteredAbsensi.forEach(a => { if (stats[a.status] !== undefined) stats[a.status]++; });
+        filteredAbsensi.forEach(a => { if (a && stats[a.status] !== undefined) stats[a.status]++; });
         const colors = { Hadir: '#10B981', Sakit: '#F59E0B', Izin: '#3B82F6', Kerja: '#8B5CF6', Alpa: '#EF4444' };
         
         return Object.keys(stats).map(key => ({
@@ -351,20 +343,28 @@
 
       const totalAbsen = absenStats.reduce((sum, item) => sum + item.value, 0);
 
+      // PERBAIKAN: Menambahkan Filter Khusus Bulan Berjalan pada Rekap Warga (Tabel Bawah)
+      const currentMonthDisplay = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][new Date().getMonth()];
+      const currentYearDisplay = new Date().getFullYear().toString();
+
       const rekapWarga = useMemo(() => {
         return ctx.warga.map(w => {
-          const txJimpitan = jimpitan.filter(t => t.wargaId === w.id);
-          const txAbsen = absensi.filter(t => t.wargaId === w.id);
+          // Khusus Jimpitan: Hanya ambil nominal di bulan dan tahun saat ini
+          const txJimpitanBulanIni = jimpitan.filter(t => t && t.wargaId === w.id && t.bulan === currentMonthDisplay && t.tahun === currentYearDisplay);
+          
+          // Absensi & Denda: Tetap menghitung tunggakan secara akumulatif (tidak di-reset)
+          const txAbsen = absensi.filter(t => t && t.wargaId === w.id);
           const alpaBelumLunas = txAbsen.filter(t => t.status === 'Alpa' && !t.isLunas).length;
+          
           return {
             ...w,
-            totalJimpitan: txJimpitan.reduce((sum, t) => sum + (Number(t.nominal) || 0), 0),
+            totalJimpitan: txJimpitanBulanIni.reduce((sum, t) => sum + (t ? Number(t.nominal) || 0 : 0), 0),
             hadir: txAbsen.filter(t => t.status === 'Hadir').length,
             alpa: txAbsen.filter(t => t.status === 'Alpa').length,
             denda: alpaBelumLunas * (settings.nominalDenda || 0),
           };
         });
-      }, [ctx.warga, jimpitan, absensi, settings.nominalDenda]);
+      }, [ctx.warga, jimpitan, absensi, settings.nominalDenda, currentMonthDisplay, currentYearDisplay]);
 
       const grandTotalDendaDashboard = rekapWarga.reduce((sum, r) => sum + r.denda, 0);
       const grandTotalJimpitanDashboard = rekapWarga.reduce((sum, r) => sum + r.totalJimpitan, 0);
@@ -514,7 +514,7 @@
                       <th className="p-4 text-center">Hadir Ronda</th>
                       <th className="p-4 text-center text-red-500">Alpa</th>
                       <th className="p-4 text-right text-red-500">Tunggakan Denda</th>
-                      <th className="p-4 text-right text-emerald-600">Total Jimpitan</th>
+                      <th className="p-4 text-right text-emerald-600">Total Jimpitan ({currentMonthDisplay})</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -778,11 +778,11 @@
       
       const [inputDate, setInputDate] = useState(getLocalToday());
 
-      const periodeOptionsJadwal = useMemo(() => ['Semua', ...new Set(jadwal.map(j => j.periode).filter(Boolean))], [jadwal]);
+      const periodeOptionsJadwal = useMemo(() => ['Semua', ...new Set(jadwal.map(j => j && j.periode).filter(Boolean))], [jadwal]);
 
       const activePeriod = useMemo(() => {
         if (settings.activePeriode) return settings.activePeriode;
-        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
+        const allPeriods = [...new Set(jadwal.map(x => x && x.periode).filter(Boolean))];
         return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
       }, [jadwal, settings.activePeriode]);
 
@@ -796,14 +796,14 @@
         const dayName = days[dateObj.getDay()];
         if (!dayName) return [];
 
-        let filtered = jadwal.filter(j => j.hari.toLowerCase() === dayName.toLowerCase());
+        let filtered = jadwal.filter(j => j && j.hari && j.hari.toLowerCase() === dayName.toLowerCase());
         
         if (activePeriod && activePeriod !== 'Semua') {
-          filtered = filtered.filter(j => j.periode === activePeriod);
+          filtered = filtered.filter(j => j && j.periode === activePeriod);
         }
 
         if (!isAdmin) {
-          filtered = filtered.filter(j => j.koordinatorId === currentUser?.wargaId);
+          filtered = filtered.filter(j => j && j.koordinatorId === currentUser?.wargaId);
         }
         return filtered;
       }, [inputDate, jadwal, isAdmin, currentUser, activePeriod]);
@@ -811,16 +811,17 @@
       const [showAddJadwal, setShowAddJadwal] = useState(false);
       const [newJadwal, setNewJadwal] = useState({ hari: 'Senin', periode: '', koordinatorId: '', anggotaIds: [] });
       
-      const mySchedules = isAdmin ? jadwal : jadwal.filter(j => j.koordinatorId === currentUser?.wargaId);
+      const mySchedules = isAdmin ? jadwal : jadwal.filter(j => j && j.koordinatorId === currentUser?.wargaId);
       
       const displayedSchedules = mySchedules.filter(j => {
+        if (!j) return false;
         if (isAdmin) return filterPeriodeJadwal === 'Semua' || j.periode === filterPeriodeJadwal;
         return !activePeriod || j.periode === activePeriod;
       });
 
       useEffect(() => {
         if (selectedJadwalId) {
-          const j = jadwal.find(x => x.id === selectedJadwalId);
+          const j = jadwal.find(x => x && x.id === selectedJadwalId);
           if (j) {
             const initData = {};
             initData[j.koordinatorId] = { status: 'Hadir', keterangan: '' };
@@ -853,7 +854,7 @@
           keterangan: absenData[wId].keterangan
         }));
         
-        const filteredAbsensi = absensi.filter(a => !(a.tanggal === inputDate && a.jadwalId === selectedJadwalId));
+        const filteredAbsensi = absensi.filter(a => a && !(a.tanggal === inputDate && a.jadwalId === selectedJadwalId));
         const updatedAbsensi = [...newEntries, ...filteredAbsensi];
         
         setAbsensi(updatedAbsensi);
@@ -871,7 +872,7 @@
                 wargaId: 'KAS-UMUM',
                 nominal: Number(totalJimpitanManual)
             };
-            const filteredJimpitan = jimpitan.filter(j => !(j.tanggal === inputDate && j.jadwalId === selectedJadwalId && j.wargaId === 'KAS-UMUM'));
+            const filteredJimpitan = jimpitan.filter(j => j && !(j.tanggal === inputDate && j.jadwalId === selectedJadwalId && j.wargaId === 'KAS-UMUM'));
             updatedJimpitan = [newJimpitanManual, ...filteredJimpitan];
             setJimpitan(updatedJimpitan);
         }
@@ -879,7 +880,6 @@
         setSelectedJadwalId('');
         setTotalJimpitanManual('');
 
-        // PERBAIKAN: Langsung simpan dan tunggu prosesnya, tanpa antrean
         const successAbsen = await syncData("absensi", updatedAbsensi);
         let successJimpitan = true;
         
@@ -913,7 +913,7 @@
 
       const handleDeleteJadwal = (id) => {
         requestConfirm('Apakah Anda yakin ingin menghapus Regu/Jadwal ini?', async () => {
-          const updatedJadwal = jadwal.filter(j => j.id !== id);
+          const updatedJadwal = jadwal.filter(j => j && j.id !== id);
           setJadwal(updatedJadwal);
           const success = await syncData("jadwal", updatedJadwal);
           if(success) showToast('Jadwal regu berhasil dihapus');
@@ -924,7 +924,7 @@
       const handleAddMemberToRegu = async (jadwalId, wargaId) => {
         if (!wargaId) return;
         const updatedJadwal = jadwal.map(j => {
-          if (j.id === jadwalId && !j.anggotaIds.includes(wargaId)) {
+          if (j && j.id === jadwalId && !j.anggotaIds.includes(wargaId)) {
             return { ...j, anggotaIds: [...j.anggotaIds, wargaId] };
           }
           return j;
@@ -938,7 +938,7 @@
       const handleRemoveMemberFromRegu = (jadwalId, wargaId) => {
         requestConfirm('Hapus anggota ini dari regu ronda?', async () => {
           const updatedJadwal = jadwal.map(j => {
-            if (j.id === jadwalId) {
+            if (j && j.id === jadwalId) {
               return { ...j, anggotaIds: j.anggotaIds.filter(id => id !== wargaId) };
             }
             return j;
@@ -952,7 +952,7 @@
 
       const riwayatAbsensi = useMemo(() => {
         if (!selectedJadwalId) return [];
-        const records = absensi.filter(a => a.jadwalId === selectedJadwalId);
+        const records = absensi.filter(a => a && a.jadwalId === selectedJadwalId);
         const grouped = records.reduce((acc, curr) => {
           if (!acc[curr.tanggal]) acc[curr.tanggal] = { tanggal: curr.tanggal, Hadir: 0, Alpa: 0, IzinSakit: 0 };
           if (curr.status === 'Hadir') acc[curr.tanggal].Hadir++;
@@ -1270,7 +1270,7 @@
 
       const activePeriod = useMemo(() => {
         if (settings.activePeriode) return settings.activePeriode;
-        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
+        const allPeriods = [...new Set(jadwal.map(x => x && x.periode).filter(Boolean))];
         return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
       }, [jadwal, settings.activePeriode]);
       
@@ -1283,14 +1283,14 @@
         const selectedDayName = days[dateObj.getDay()];
         if (!selectedDayName) return [];
 
-        let filtered = jadwal.filter(j => j.hari.toLowerCase() === selectedDayName.toLowerCase());
+        let filtered = jadwal.filter(j => j && j.hari && j.hari.toLowerCase() === selectedDayName.toLowerCase());
         
         if (activePeriod && activePeriod !== 'Semua') {
-          filtered = filtered.filter(j => j.periode === activePeriod);
+          filtered = filtered.filter(j => j && j.periode === activePeriod);
         }
 
         if (!isAdmin) {
-          filtered = filtered.filter(j => j.koordinatorId === currentUser?.wargaId);
+          filtered = filtered.filter(j => j && j.koordinatorId === currentUser?.wargaId);
         }
         return filtered;
       }, [inputDate, jadwal, isAdmin, currentUser, activePeriod]);
@@ -1309,7 +1309,7 @@
       const scannerRef = useRef(null);
 
       const checkAlreadyPaid = (wId) => {
-        return jimpitan.some(j => j.tanggal === inputDate && (j.jadwalId === selectedJadwalId || (!selectedJadwalId && j.jadwalId === 'Tanpa Regu')) && j.wargaId === wId);
+        return jimpitan.some(j => j && j.tanggal === inputDate && (j.jadwalId === selectedJadwalId || (!selectedJadwalId && j.jadwalId === 'Tanpa Regu')) && j.wargaId === wId);
       }
 
       const startCamera = () => {
@@ -1386,7 +1386,6 @@
         }
       };
 
-      // PERBAIKAN: Fungsi simpan scanner dikonversi agar aman dan langsung tersimpan (await)
       const handleQuickSave = async (nom) => {
         if (!scannedWarga) return;
         if (!inputDate) return showToast("Tanggal jimpitan belum dipilih!");
@@ -1521,7 +1520,7 @@
       const [filterBulan, setFilterBulan] = useState('Semua');
       const [filterTahun, setFilterTahun] = useState('Semua');
 
-      const periodeOptions = useMemo(() => ['Semua', ...new Set(jadwal.map(j => j.periode).filter(Boolean))], [jadwal]);
+      const periodeOptions = useMemo(() => ['Semua', ...new Set(jadwal.map(j => j && j.periode).filter(Boolean))], [jadwal]);
       const hariOptions = ['Semua', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
       const bulanOptions = ['Semua', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
       const tahunOptions = ['Semua', '2024', '2025', '2026', '2027'];
@@ -1532,7 +1531,7 @@
 
       const activePeriod = useMemo(() => {
         if (settings.activePeriode) return settings.activePeriode;
-        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
+        const allPeriods = [...new Set(jadwal.map(x => x && x.periode).filter(Boolean))];
         return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : 'Semua';
       }, [jadwal, settings.activePeriode]);
 
@@ -1542,22 +1541,24 @@
       }, [isAdmin, filterPeriode, activePeriod]);
 
       const filteredJimpitan = jimpitan.filter(j => {
+        if (!j) return false;
         const matchBulan = filterBulan === 'Semua' || j.bulan === filterBulan;
         const matchTahun = filterTahun === 'Semua' || j.tahun === filterTahun;
         let matchPeriode = true;
         if (appliedFilterPeriode !== 'Semua') {
-           const jw = jadwal.find(x => x.id === j.jadwalId);
+           const jw = jadwal.find(x => x && x.id === j.jadwalId);
            matchPeriode = jw && jw.periode === appliedFilterPeriode;
         }
         return matchBulan && matchTahun && matchPeriode;
       });
 
       const filteredAbsensi = absensi.filter(a => {
+        if (!a) return false;
         const matchBulan = filterBulan === 'Semua' || a.bulan === filterBulan;
         const matchTahun = filterTahun === 'Semua' || a.tahun === filterTahun;
         let matchPeriode = true;
         if (appliedFilterPeriode !== 'Semua') {
-           const jw = jadwal.find(x => x.id === a.jadwalId);
+           const jw = jadwal.find(x => x && x.id === a.jadwalId);
            matchPeriode = jw && jw.periode === appliedFilterPeriode;
         }
         return matchBulan && matchTahun && matchPeriode;
@@ -1566,26 +1567,27 @@
       const rekapWarga = useMemo(() => {
         let filteredWargaIds = null;
         if (filterHari !== 'Semua' || appliedFilterPeriode !== 'Semua') {
-           const matchingJadwal = jadwal.filter(j => 
-               (filterHari === 'Semua' || j.hari.toLowerCase() === filterHari.toLowerCase()) &&
+           const matchingJadwal = jadwal.filter(j => j &&
+               (filterHari === 'Semua' || (j.hari && j.hari.toLowerCase() === filterHari.toLowerCase())) &&
                (appliedFilterPeriode === 'Semua' || j.periode === appliedFilterPeriode)
            );
            filteredWargaIds = [];
            matchingJadwal.forEach(jw => {
-               filteredWargaIds.push(jw.koordinatorId, ...jw.anggotaIds);
+               if (jw.koordinatorId) filteredWargaIds.push(jw.koordinatorId);
+               if (jw.anggotaIds) filteredWargaIds.push(...jw.anggotaIds);
            });
         }
 
         return warga
           .filter(w => filteredWargaIds ? filteredWargaIds.includes(w.id) : true)
           .map(w => {
-            const txJimpitan = filteredJimpitan.filter(t => t.wargaId === w.id);
-            const txAbsen = filteredAbsensi.filter(t => t.wargaId === w.id);
+            const txJimpitan = filteredJimpitan.filter(t => t && t.wargaId === w.id);
+            const txAbsen = filteredAbsensi.filter(t => t && t.wargaId === w.id);
             const alpaCount = txAbsen.filter(t => t.status === 'Alpa').length;
             const alpaBelumLunas = txAbsen.filter(t => t.status === 'Alpa' && !t.isLunas).length;
             return {
               ...w,
-              totalJimpitan: txJimpitan.reduce((sum, t) => sum + (Number(t.nominal) || 0), 0),
+              totalJimpitan: txJimpitan.reduce((sum, t) => sum + (t ? Number(t.nominal) || 0 : 0), 0),
               hadir: txAbsen.filter(t => t.status === 'Hadir').length,
               alpa: alpaCount,
               denda: alpaBelumLunas * (settings.nominalDenda || 0),
@@ -1593,13 +1595,14 @@
           });
       }, [warga, filteredJimpitan, filteredAbsensi, settings.nominalDenda, filterHari, appliedFilterPeriode, jadwal]);
 
-      const grandTotalJimpitan = filteredJimpitan.reduce((sum, j) => sum + (Number(j.nominal) || 0), 0);
+      const grandTotalJimpitan = filteredJimpitan.reduce((sum, j) => sum + (j ? Number(j.nominal) || 0 : 0), 0);
       const grandTotalDenda = rekapWarga.reduce((sum, w) => sum + w.denda, 0);
 
       const rekapHarian = useMemo(() => {
         const harianMap = {};
         
         filteredJimpitan.forEach(t => {
+          if (!t) return;
           const key = `${t.tanggal}_${t.jadwalId || 'Tanpa Regu'}`;
           if (!harianMap[key]) {
             const dateParts = t.tanggal.split('-');
@@ -1611,7 +1614,7 @@
         });
 
         filteredAbsensi.forEach(a => {
-           if (a.status !== 'Hadir') {
+           if (a && a.status !== 'Hadir') {
               const key = `${a.tanggal}_${a.jadwalId || 'Tanpa Regu'}`;
               if (!harianMap[key]) {
                 const dateParts = a.tanggal.split('-');
@@ -1641,14 +1644,14 @@
         } else {
           csvContent += "Tanggal Input,Regu Bertugas,Kehadiran,Total Pemasukan\n";
           rekapHarian.forEach(r => {
-            const jw = jadwal.find(x => x.id === r.jadwalId);
+            const jw = jadwal.find(x => x && x.id === r.jadwalId);
             const regu = jw ? `Regu Hari ${jw.hari}` : "Tanpa Regu Terjadwal";
             let kehadiran = r.anggotaAlpa.length > 0 
               ? r.anggotaAlpa.map(a => `[${a.status}] ${a.nama}`).join(" | ") 
               : "Hadir Semua";
             csvContent += `"${r.tanggal}","${regu}","${kehadiran}",${r.total}\n`;
           });
-          const totalPemasukanHarian = rekapHarian.filter(r => isAdmin || (currentUser?.role === 'Koordinator' && jadwal.find(j=>j.id===r.jadwalId)?.koordinatorId === currentUser.wargaId)).reduce((sum, r) => sum + r.total, 0);
+          const totalPemasukanHarian = rekapHarian.filter(r => isAdmin || (currentUser?.role === 'Koordinator' && jadwal.find(j=> j && j.id===r.jadwalId)?.koordinatorId === currentUser.wargaId)).reduce((sum, r) => sum + r.total, 0);
           csvContent += `Total Pemasukan Harian,,,,${totalPemasukanHarian}\n`;
         }
         
@@ -1664,15 +1667,15 @@
       };
 
       const handleOpenEditModal = (tanggal, jadwalId) => {
-        const jw = jadwal.find(x => x.id === jadwalId);
-        const reguMembers = jw ? [jw.koordinatorId, ...jw.anggotaIds] : [];
+        const jw = jadwal.find(x => x && x.id === jadwalId);
+        const reguMembers = jw ? [jw.koordinatorId, ...(jw.anggotaIds || [])] : [];
 
-        const existingManualJimpitan = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === 'KAS-UMUM');
+        const existingManualJimpitan = jimpitan.find(j => j && j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === 'KAS-UMUM');
         setManualJimpitanEdit(existingManualJimpitan ? existingManualJimpitan.nominal : '');
 
         const formData = warga.map(w => {
-           const existingJimpitan = jimpitan.find(j => j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === w.id);
-           const existingAbsen = absensi.find(a => a.tanggal === tanggal && a.jadwalId === jadwalId && a.wargaId === w.id);
+           const existingJimpitan = jimpitan.find(j => j && j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === w.id);
+           const existingAbsen = absensi.find(a => a && a.tanggal === tanggal && a.jadwalId === jadwalId && a.wargaId === w.id);
            const isMember = reguMembers.includes(w.id);
 
            return {
@@ -1689,7 +1692,6 @@
         setEditModal({ tanggal, jadwalId });
       };
 
-      // PERBAIKAN: Fungsi Save Edit Laporan langsung await
       const handleSaveEdit = async (e) => {
         e.preventDefault();
         const { tanggal, jadwalId } = editModal;
@@ -1700,8 +1702,8 @@
         const monthStr = monthNames[dateObj.getMonth()];
         const yearStr = dateObj.getFullYear().toString();
 
-        const newJimpitan = jimpitan.filter(j => !(j.tanggal === tanggal && j.jadwalId === jadwalId));
-        const newAbsensi = absensi.filter(a => !(a.tanggal === tanggal && a.jadwalId === jadwalId));
+        const newJimpitan = jimpitan.filter(j => j && !(j.tanggal === tanggal && j.jadwalId === jadwalId));
+        const newAbsensi = absensi.filter(a => a && !(a.tanggal === tanggal && a.jadwalId === jadwalId));
         
         const editedJimpitan = [];
         const editedAbsensi = [];
@@ -1750,8 +1752,8 @@
 
       const handleHapusLaporan = () => {
          requestConfirm("Yakin ingin menghapus seluruh laporan (Absen & Jimpitan) pada tanggal dan regu ini?", async () => {
-             const newJimpitan = jimpitan.filter(j => !(j.tanggal === editModal.tanggal && j.jadwalId === editModal.jadwalId));
-             const newAbsensi = absensi.filter(a => !(a.tanggal === editModal.tanggal && a.jadwalId === editModal.jadwalId));
+             const newJimpitan = jimpitan.filter(j => j && !(j.tanggal === editModal.tanggal && j.jadwalId === editModal.jadwalId));
+             const newAbsensi = absensi.filter(a => a && !(a.tanggal === editModal.tanggal && a.jadwalId === editModal.jadwalId));
              
              setJimpitan(newJimpitan);
              setAbsensi(newAbsensi);
@@ -1865,9 +1867,9 @@
                       <tr><td colSpan="5" className="p-4 text-center text-gray-500 italic">Belum ada data pemasukan/absensi pada periode ini.</td></tr>
                     )}
                     {rekapHarian.map((r, i) => {
-                      const jw = jadwal.find(x => x.id === r.jadwalId);
+                      const jw = jadwal.find(x => x && x.id === r.jadwalId);
                       
-                      const isMyRegu = currentUser?.role === 'Koordinator' && jadwal.filter(j => j.koordinatorId === currentUser.wargaId).map(j=>j.id).includes(r.jadwalId);
+                      const isMyRegu = currentUser?.role === 'Koordinator' && jadwal.filter(j => j && j.koordinatorId === currentUser.wargaId).map(j=>j.id).includes(r.jadwalId);
                       if (!isAdmin && !isMyRegu && currentUser?.role === 'Koordinator') return null;
                       
                       const todayStr = getLocalToday();
@@ -1917,7 +1919,7 @@
                       <tr className="bg-gray-100 dark:bg-gray-800 font-bold text-sm print:bg-gray-200">
                         <td colSpan="3" className="p-4 text-right uppercase print:border-black print:border">Total Pemasukan Harian:</td>
                         <td className="p-4 text-right text-emerald-600 print:text-black print:border-black print:border">
-                          Rp {rekapHarian.filter(r => isAdmin || (currentUser?.role === 'Koordinator' && jadwal.find(j=>j.id===r.jadwalId)?.koordinatorId === currentUser.wargaId)).reduce((sum, r) => sum + r.total, 0).toLocaleString('id-ID')}
+                          Rp {rekapHarian.filter(r => isAdmin || (currentUser?.role === 'Koordinator' && jadwal.find(j=> j && j.id===r.jadwalId)?.koordinatorId === currentUser.wargaId)).reduce((sum, r) => sum + r.total, 0).toLocaleString('id-ID')}
                         </td>
                         <td className="print-hide"></td>
                       </tr>
@@ -1934,7 +1936,7 @@
                   <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800/50 rounded-t-xl">
                      <div>
                        <h3 className="font-bold text-lg">Edit Laporan Harian</h3>
-                       <p className="text-sm opacity-70">Tanggal: {editModal.tanggal} | Regu: {jadwal.find(j => j.id === editModal.jadwalId)?.hari || editModal.jadwalId}</p>
+                       <p className="text-sm opacity-70">Tanggal: {editModal.tanggal} | Regu: {jadwal.find(j => j && j.id === editModal.jadwalId)?.hari || editModal.jadwalId}</p>
                      </div>
                      <button onClick={() => setEditModal(null)} className="text-gray-500 hover:text-red-500 bg-gray-200 dark:bg-gray-700 p-2 rounded-full"><X size={20} /></button>
                   </div>
@@ -2044,38 +2046,38 @@
 
       const activePeriod = useMemo(() => {
         if (settings.activePeriode) return settings.activePeriode;
-        const allPeriods = [...new Set(jadwal.map(x => x.periode).filter(Boolean))];
+        const allPeriods = [...new Set(jadwal.map(x => x && x.periode).filter(Boolean))];
         return allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : null;
       }, [jadwal, settings.activePeriode]);
 
       const allowedWargaIds = useMemo(() => {
         if (isAdmin) return warga.map(w => w.id);
-        const myJadwal = jadwal.filter(j => j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod));
+        const myJadwal = jadwal.filter(j => j && j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod));
         const ids = new Set();
-        myJadwal.forEach(j => { ids.add(j.koordinatorId); j.anggotaIds.forEach(id => ids.add(id)); });
+        myJadwal.forEach(j => { ids.add(j.koordinatorId); (j.anggotaIds || []).forEach(id => ids.add(id)); });
         return Array.from(ids);
       }, [isAdmin, warga, jadwal, currentUser, activePeriod]);
 
       const alpaRecords = useMemo(() => {
-        return absensi.filter(a => a.status === 'Alpa' && a.bulan === filterBulan && a.tahun === filterTahun);
+        return absensi.filter(a => a && a.status === 'Alpa' && a.bulan === filterBulan && a.tahun === filterTahun);
       }, [absensi, filterBulan, filterTahun]);
 
       const groupedAlpa = useMemo(() => {
         const groups = {};
         alpaRecords.forEach(a => {
-           if (!allowedWargaIds.includes(a.wargaId)) return;
+           if (!a || !allowedWargaIds.includes(a.wargaId)) return;
            if (!groups[a.wargaId]) groups[a.wargaId] = [];
            groups[a.wargaId].push(a);
         });
         return Object.keys(groups).map(wId => ({
            wargaId: wId,
-           nama: warga.find(w => w.id === wId)?.nama || wId,
+           nama: warga.find(w => w && w.id === wId)?.nama || wId,
            records: groups[wId].sort((a,b) => new Date(a.tanggal) - new Date(b.tanggal))
         })).sort((a,b) => a.nama.localeCompare(b.nama));
       }, [alpaRecords, allowedWargaIds, warga]);
 
       const handleToggleLunas = async (id, currentStatus) => {
-         const newAbsensi = absensi.map(a => a.id === id ? { ...a, isLunas: !currentStatus } : a);
+         const newAbsensi = absensi.map(a => a && a.id === id ? { ...a, isLunas: !currentStatus } : a);
          setAbsensi(newAbsensi);
          showToast(currentStatus ? 'Status denda diubah menjadi Belum Lunas...' : 'Menyimpan status Lunas...');
          
@@ -2386,8 +2388,8 @@
                     </thead>
                     <tbody>
                       {accounts.map(acc => {
-                        const isKoordinator = jadwal.filter(j => j.koordinatorId === acc.wargaId).map(j => j.hari);
-                        const isAnggota = jadwal.filter(j => j.anggotaIds.includes(acc.wargaId)).map(j => j.hari);
+                        const isKoordinator = jadwal.filter(j => j && j.koordinatorId === acc.wargaId).map(j => j.hari);
+                        const isAnggota = jadwal.filter(j => j && (j.anggotaIds || []).includes(acc.wargaId)).map(j => j.hari);
                         return (
                           <tr key={acc.id} className={`border-b ${ui.tableRow}`}>
                             <td className="p-4">
@@ -2582,11 +2584,10 @@
         tableRow: isDarkMode ? 'border-gray-700 hover:bg-gray-750' : 'border-gray-200 hover:bg-gray-50',
       };
 
-      const getWargaName = (id) => warga.find(w => w.id === id)?.nama || 'Unknown';
+      const getWargaName = (id) => warga.find(w => w && w.id === id)?.nama || 'Unknown';
       const userRole = isPublicView ? 'Publik' : currentUser?.role;
       const isAdmin = currentUser?.role === 'Admin Jimpitan';
 
-      // Menambahkan menu cetak barcode
       const allMenuItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin Jimpitan', 'Koordinator', 'Publik'] },
         { id: 'warga', label: 'Data Warga', icon: Users, roles: ['Admin Jimpitan'] },
