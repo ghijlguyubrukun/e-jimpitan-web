@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>e-Jimpitan</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#059669">
 
   <!-- Favicon Aplikasi -->
   <link rel="icon" type="image/png" href="favicon.png">
@@ -131,7 +133,28 @@
     
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    /* Prevent text selection */
+    body {
+      -webkit-user-select: none; /* Safari */
+      -ms-user-select: none; /* IE 10 and IE 11 */
+      user-select: none; /* Standard syntax */
+    }
   </style>
+  <script>
+    // Mencegah Klik Kanan
+    document.addEventListener('contextmenu', event => event.preventDefault());
+    
+    // Mencegah Shortcut Keyboard Inspect Element & View Source
+    document.onkeydown = function(e) {
+      if (
+        e.keyCode === 123 || // F12
+        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || // Ctrl+Shift+I/J/C
+        (e.ctrlKey && e.keyCode === 85) // Ctrl+U
+      ) {
+        return false;
+      }
+    };
+  </script>
 </head>
 <body class="bg-gray-50">
   <div id="root">
@@ -221,6 +244,10 @@
     const ImageIcon = (p) => <LucideIcon name="image" {...p} />;
     const Wallet = (p) => <LucideIcon name="wallet" {...p} />;
     const Printer = (p) => <LucideIcon name="printer" {...p} />; 
+    const Save = (p) => <LucideIcon name="save" {...p} />;
+    const Database = (p) => <LucideIcon name="database" {...p} />;
+    const Download = (p) => <LucideIcon name="download" {...p} />;
+    const Upload = (p) => <LucideIcon name="upload" {...p} />;
 
     const initialWarga = [
       { id: 'H-01', nama: 'Budi Santoso', alamat: 'Blok H No 1', hp: '08123456789', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni' },
@@ -302,6 +329,7 @@
 
     const Dashboard = ({ ctx }) => {
       const { jadwal, absensi, jimpitan, settings, currentUser, isPublicView, isAdmin, theme, ui, getWargaName } = ctx;
+      const [searchQuery, setSearchQuery] = useState('');
       
       const activePeriod = useMemo(() => {
         if (settings.activePeriode) return settings.activePeriode;
@@ -315,7 +343,7 @@
 
       const myJadwalIds = isAdmin || isPublicView 
         ? activeJadwal.map(j => j.id) 
-        : activeJadwal.filter(j => j && j.koordinatorId === currentUser?.wargaId).map(j => j.id);
+        : activeJadwal.filter(j => j && (j.koordinatorId === currentUser?.wargaId || j.koordinatorId === currentUser?.username)).map(j => j.id);
       
       const filteredAbsensi = isAdmin || isPublicView 
         ? absensi 
@@ -494,14 +522,14 @@
                 <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">Daftar Regu Ronda Aktif & Koordinator</h3>
               </div>
               
-              {activeJadwal.length === 0 ? (
+              {activeJadwal.filter(j => j.anggotaIds && j.anggotaIds.length > 0).length === 0 ? (
                 <div className={`${ui.card} p-8 rounded-xl text-center border border-dashed border-gray-300 dark:border-gray-700`}>
                   <CalendarDays size={48} className="mx-auto text-gray-400 mb-3 opacity-50" />
                   <p className="text-gray-500 font-medium">Belum ada regu yang dijadwalkan pada periode ini.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-5">
-                  {activeJadwal.map(j => (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+                  {activeJadwal.filter(j => j.anggotaIds && j.anggotaIds.length > 0).map(j => (
                     <div key={j.id} className={`${ui.card} relative overflow-hidden rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-300 group`}>
                       {/* Aksen Garis Warna di Atas Kotak */}
                       <div className={`h-1.5 w-full ${theme.main}`}></div>
@@ -526,22 +554,7 @@
                             </div>
                           </div>
                           
-                          {/* Daftar Anggota dengan Desain Chips/Badge */}
-                          <div>
-                            <span className="text-[8px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5 sm:mb-2">Anggota ({j.anggotaIds.length})</span>
-                            <div className="flex flex-wrap gap-1 sm:gap-1.5">
-                              {j.anggotaIds.length > 0 ? (
-                                j.anggotaIds.map(id => (
-                                  <span key={id} className="flex items-center gap-1 sm:gap-1.5 text-[9px] sm:text-[11px] font-medium bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-gray-700 dark:text-gray-300 truncate max-w-full">
-                                    <UserCircle size={10} className="opacity-60 shrink-0" />
-                                    <span className="truncate">{getWargaName(id)}</span>
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="text-[9px] sm:text-xs text-gray-400 italic font-medium bg-gray-50 dark:bg-gray-800 px-2 sm:px-3 py-1 rounded-md border border-gray-100 dark:border-gray-700">Kosong</span>
-                              )}
-                            </div>
-                          </div>
+
                         </div>
                       </div>
                     </div>
@@ -552,48 +565,84 @@
           )}
 
           {isPublicView && (
-            <div className={`${ui.card} p-3 sm:p-6 rounded-xl mt-6`}>
-              <h3 className="text-base sm:text-lg font-semibold mb-4">Laporan Transparansi Ronda Warga</h3>
-              <div className="overflow-x-auto no-scrollbar">
+            <div className={`${ui.card} p-4 sm:p-6 rounded-xl mt-6 shadow-lg`}>
+              <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+                <div className="flex items-center gap-3">
+                  <ClipboardList className="text-blue-500 w-6 h-6" />
+                  <h3 className="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-teal-500">
+                    Laporan Transparansi Ronda
+                  </h3>
+                </div>
+                <div className="relative w-full sm:w-64">
+                  <input
+                    type="text"
+                    placeholder="Cari Warga..."
+                    className={`w-full p-2 pl-9 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-400 ${ui.input}`}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  <div className="absolute left-3 top-2.5 text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="max-h-[450px] overflow-y-auto overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-inner no-scrollbar relative">
                 <table className="w-full text-left border-collapse text-xs sm:text-sm">
-                  <thead>
+                  <thead className="sticky top-0 z-10 shadow-sm">
                     <tr className={`${ui.tableHead} border-b`}>
-                      <th className="p-2 sm:p-4 font-bold whitespace-nowrap">Nama & Status Warga</th>
-                      <th className="p-2 sm:p-4 text-center font-bold whitespace-nowrap text-gray-700 dark:text-gray-300">Hadir</th>
-                      <th className="p-2 sm:p-4 text-center font-bold whitespace-nowrap text-red-500">Alpa</th>
-                      <th className="p-2 sm:p-4 text-right font-bold whitespace-nowrap text-red-500">Denda</th>
-                      <th className="p-2 sm:p-4 text-right font-bold whitespace-nowrap text-emerald-600">Jimpitan ({currentMonthDisplay})</th>
+                      <th className="p-3 sm:p-4 font-bold whitespace-nowrap">Nama & Status Warga</th>
+                      <th className="p-3 sm:p-4 text-center font-bold whitespace-nowrap text-gray-700 dark:text-gray-300">Hadir</th>
+                      <th className="p-3 sm:p-4 text-center font-bold whitespace-nowrap text-red-500">Alpa</th>
+                      <th className="p-3 sm:p-4 text-right font-bold whitespace-nowrap text-red-500">Denda</th>
+                      <th className="p-3 sm:p-4 text-right font-bold whitespace-nowrap text-emerald-600">Jimpitan ({currentMonthDisplay})</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rekapWarga.map((r, i) => (
-                      <tr key={i} className={`border-b ${ui.tableRow}`}>
-                        <td className="p-2 sm:p-4">
-                          <div className="font-bold text-gray-800 dark:text-gray-200 leading-tight min-w-[100px]" title={r.nama}>
+                    {rekapWarga.filter(r => (r.nama || '').toLowerCase().includes(searchQuery.toLowerCase())).map((r, i) => (
+                      <tr key={i} className={`border-b ${ui.tableRow} hover:bg-blue-50 dark:hover:bg-gray-700/50 transition-colors`}>
+                        <td className="p-3 sm:p-4">
+                          <div className="font-bold text-gray-800 dark:text-gray-200 leading-tight min-w-[120px]" title={r.nama}>
                             {r.nama}
                           </div>
                           <div className="flex flex-wrap gap-1 mt-1.5">
-                            {/* Memanggil Helper Badge yang baru saja kita pasang */}
                             {getStatusWargaBadge(r.statusWarga || 'Penghuni Tetap')}
                             {getKetRumahBadge(r.ketRumah || 'Ada Penghuni')}
                           </div>
                         </td>
-                        <td className="p-2 sm:p-4 text-center font-medium text-gray-600 dark:text-gray-300">{r.hadir}x</td>
-                        <td className="p-2 sm:p-4 text-center font-bold text-red-500">{r.alpa}x</td>
-                        <td className="p-2 sm:p-4 text-right font-bold text-red-600 whitespace-nowrap">
+                        <td className="p-3 sm:p-4 text-center font-medium text-gray-600 dark:text-gray-300">
+                          <div className="flex items-center justify-center gap-1">
+                            {r.hadir > 0 && <CheckCircle size={14} className="text-emerald-500 hidden sm:block"/>}
+                            <span className={r.hadir > 0 ? "text-emerald-600 font-bold" : ""}>{r.hadir}x</span>
+                          </div>
+                        </td>
+                        <td className="p-3 sm:p-4 text-center font-bold text-red-500">
+                          <div className="flex items-center justify-center gap-1">
+                            {r.alpa > 0 && <X size={14} className="text-red-500 hidden sm:block"/>}
+                            <span>{r.alpa}x</span>
+                          </div>
+                        </td>
+                        <td className="p-3 sm:p-4 text-right font-bold text-red-600 whitespace-nowrap">
                           {r.denda > 0 ? `Rp ${r.denda.toLocaleString('id-ID')}` : '-'}
                         </td>
-                        <td className="p-2 sm:p-4 text-right font-bold text-emerald-600 whitespace-nowrap">
+                        <td className="p-3 sm:p-4 text-right font-bold text-emerald-600 whitespace-nowrap">
                           Rp {r.totalJimpitan.toLocaleString('id-ID')}
                         </td>
                       </tr>
                     ))}
-                    <tr className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                      <td colSpan="3" className="p-2 sm:p-4 text-right font-bold text-gray-600 dark:text-gray-300 uppercase">Total:</td>
-                      <td className="p-2 sm:p-4 text-right font-bold text-red-600 whitespace-nowrap">Rp {grandTotalDendaDashboard.toLocaleString('id-ID')}</td>
-                      <td className="p-2 sm:p-4 text-right font-bold text-emerald-600 whitespace-nowrap">Rp {grandTotalJimpitanDashboard.toLocaleString('id-ID')}</td>
-                    </tr>
+                    {rekapWarga.filter(r => (r.nama || '').toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                      <tr>
+                         <td colSpan="5" className="p-8 text-center text-gray-500 font-medium">Tidak ada data warga yang cocok dengan pencarian "{searchQuery}"</td>
+                      </tr>
+                    )}
                   </tbody>
+                  <tfoot className="sticky bottom-0 z-10 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
+                    <tr className="bg-gray-100 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600">
+                      <td colSpan="3" className="p-3 sm:p-4 text-right font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Total Keseluruhan:</td>
+                      <td className="p-3 sm:p-4 text-right font-bold text-red-600 whitespace-nowrap">Rp {grandTotalDendaDashboard.toLocaleString('id-ID')}</td>
+                      <td className="p-3 sm:p-4 text-right font-bold text-emerald-600 whitespace-nowrap">Rp {grandTotalJimpitanDashboard.toLocaleString('id-ID')}</td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -857,7 +906,7 @@
         }
 
         if (!isAdmin) {
-          filtered = filtered.filter(j => j && j.koordinatorId === currentUser?.wargaId);
+          filtered = filtered.filter(j => j && (j.koordinatorId === currentUser?.wargaId || j.koordinatorId === currentUser?.username));
         }
         return filtered;
       }, [inputDate, jadwal, isAdmin, currentUser, activePeriod]);
@@ -865,7 +914,7 @@
       const [showAddJadwal, setShowAddJadwal] = useState(false);
       const [newJadwal, setNewJadwal] = useState({ hari: 'Senin', periode: '', koordinatorId: '', anggotaIds: [] });
       
-      const mySchedules = isAdmin ? jadwal : jadwal.filter(j => j && j.koordinatorId === currentUser?.wargaId);
+      const mySchedules = isAdmin ? jadwal : jadwal.filter(j => j && (j.koordinatorId === currentUser?.wargaId || j.koordinatorId === currentUser?.username));
       
       const displayedSchedules = mySchedules.filter(j => {
         if (!j) return false;
@@ -1344,7 +1393,7 @@
         }
 
         if (!isAdmin) {
-          filtered = filtered.filter(j => j && j.koordinatorId === currentUser?.wargaId);
+          filtered = filtered.filter(j => j && (j.koordinatorId === currentUser?.wargaId || j.koordinatorId === currentUser?.username));
         }
         return filtered;
       }, [inputDate, jadwal, isAdmin, currentUser, activePeriod]);
@@ -1361,6 +1410,45 @@
 
       const [isCameraActive, setIsCameraActive] = useState(false);
       const scannerRef = useRef(null);
+
+      // Antrian Multi-User
+      const [pendingScans, setPendingScans] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('pendingJimpitanScans')) || []; } catch(e) { return []; }
+      });
+      const [isSyncingQueue, setIsSyncingQueue] = useState(false);
+
+      useEffect(() => {
+        localStorage.setItem('pendingJimpitanScans', JSON.stringify(pendingScans));
+      }, [pendingScans]);
+
+      const syncQueueToServer = async () => {
+        if (pendingScans.length === 0 || isSyncingQueue) return;
+        setIsSyncingQueue(true);
+        showToast("Sinkronisasi Multi-User berjalan...");
+        try {
+           const response = await fetch('https://script.google.com/macros/s/AKfycbxM33tM3kBw_Z6dl2kRc5Mv70OIZ8XPothhTGCO_kgl1lDJaB1cmUzD3TSqSt_YVA1G/exec');
+           const serverData = await response.json();
+           if (serverData && serverData.jimpitan) {
+              const currentPending = [...pendingScans];
+              const syncedIds = new Set(currentPending.map(s => s.id));
+              const serverClean = serverData.jimpitan.filter(s => !syncedIds.has(s.id));
+              const merged = [...currentPending, ...serverClean];
+              
+              const success = await window.simpanDataKeSpreadsheet("jimpitan", merged);
+              if (success) {
+                 setJimpitan(merged);
+                 setPendingScans(prev => prev.filter(s => !syncedIds.has(s.id)));
+                 showToast(`Berhasil sinkronisasi ${currentPending.length} data scan ke server!`);
+              } else {
+                 showToast("Gagal menyimpan ke server, akan coba lagi nanti.");
+              }
+           }
+        } catch (e) {
+           showToast("Gagal mengambil data terbaru dari server.");
+        } finally {
+           setIsSyncingQueue(false);
+        }
+      };
 
       const checkAlreadyPaid = (wId) => {
         return jimpitan.some(j => j && j.tanggal === inputDate && (j.jadwalId === selectedJadwalId || (!selectedJadwalId && j.jadwalId === 'Tanpa Regu')) && j.wargaId === wId);
@@ -1462,22 +1550,29 @@
         const updatedJimpitan = [newEntry, ...jimpitan];
         
         setJimpitan(updatedJimpitan);
+        setPendingScans(prev => [newEntry, ...prev]);
         setScannedWarga(null); 
         setManualId(''); 
         
-        const success = await syncData("jimpitan", updatedJimpitan);
-        if (success) {
-            showToast(`Setoran Rp ${Number(nom).toLocaleString('id-ID')} berhasil dicatat!`);
-        } else {
-            showToast('Gagal menyimpan ke server, hanya tersimpan lokal.');
-        }
+        showToast(`Setoran Rp ${Number(nom).toLocaleString('id-ID')} dicatat ke antrian!`);
+        
+        // Background sync
+        setTimeout(() => {
+           syncQueueToServer();
+        }, 500);
       };
 
       return (
         <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
-          <div className="text-center mb-6">
+          <div className="text-center mb-6 relative">
             <h2 className="text-2xl font-bold">Input & Scan Jimpitan</h2>
             <p className="text-gray-500 text-sm mt-2">Pilih tanggal dan scan barcode di kotak jimpitan rumah warga.</p>
+            {pendingScans.length > 0 && (
+                <button onClick={syncQueueToServer} disabled={isSyncingQueue} className={`mt-4 mx-auto bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all ${isSyncingQueue ? 'opacity-70 cursor-wait' : 'animate-pulse'}`}>
+                   {isSyncingQueue ? <span className="animate-spin text-xl">⏳</span> : <span className="text-xl">🔄</span>}
+                   {isSyncingQueue ? 'Menyinkronkan...' : `Kirim ${pendingScans.length} Data Antrian`}
+                </button>
+            )}
           </div>
           
           <div className="mb-6 max-w-xs mx-auto">
@@ -1566,7 +1661,7 @@
     };
 
     const RekapLaporan = ({ ctx }) => {
-      const { warga, jimpitan, setJimpitan, absensi, setAbsensi, jadwal, settings, theme, ui, getWargaName, syncData, showToast, requestConfirm, isAdmin, currentUser } = ctx;
+      const { warga, jimpitan, setJimpitan, absensi, setAbsensi, jadwal, settings, theme, ui, getWargaName, syncData, showToast, requestConfirm, isAdmin, currentUser, userRole } = ctx;
       
       const [rekapTab, setRekapTab] = useState(isAdmin ? 'akumulasi' : 'harian'); 
       const [filterPeriode, setFilterPeriode] = useState('Semua');
@@ -1705,7 +1800,12 @@
               : "Hadir Semua";
             csvContent += `"${r.tanggal}","${regu}","${kehadiran}",${r.total}\n`;
           });
-          const totalPemasukanHarian = rekapHarian.filter(r => isAdmin || (currentUser?.role === 'Koordinator' && jadwal.find(j=> j && j.id===r.jadwalId)?.koordinatorId === currentUser.wargaId)).reduce((sum, r) => sum + r.total, 0);
+          const totalPemasukanHarian = rekapHarian.filter(r => {
+            if (isAdmin) return true;
+            if (userRole !== 'Koordinator Ronda') return false;
+            const kId = jadwal.find(j => j && j.id === r.jadwalId)?.koordinatorId;
+            return kId === currentUser?.wargaId || kId === currentUser?.username;
+          }).reduce((sum, r) => sum + r.total, 0);
           csvContent += `Total Pemasukan Harian,,,,${totalPemasukanHarian}\n`;
         }
         
@@ -1923,8 +2023,8 @@
                     {rekapHarian.map((r, i) => {
                       const jw = jadwal.find(x => x && x.id === r.jadwalId);
                       
-                      const isMyRegu = currentUser?.role === 'Koordinator' && jadwal.filter(j => j && j.koordinatorId === currentUser.wargaId).map(j=>j.id).includes(r.jadwalId);
-                      if (!isAdmin && !isMyRegu && currentUser?.role === 'Koordinator') return null;
+                      const isMyRegu = userRole === 'Koordinator Ronda' && jadwal.filter(j => j && (j.koordinatorId === currentUser?.wargaId || j.koordinatorId === currentUser?.username)).map(j=>j.id).includes(r.jadwalId);
+                      if (!isAdmin && !isMyRegu && userRole === 'Koordinator Ronda') return null;
                       
                       const todayStr = getLocalToday();
                       const canEdit = isAdmin || (isMyRegu && r.tanggal === todayStr);
@@ -1973,7 +2073,12 @@
                       <tr className="bg-gray-100 dark:bg-gray-800 font-bold text-sm print:bg-gray-200">
                         <td colSpan="3" className="p-4 text-right uppercase print:border-black print:border">Total Pemasukan Harian:</td>
                         <td className="p-4 text-right text-emerald-600 print:text-black print:border-black print:border">
-                          Rp {rekapHarian.filter(r => isAdmin || (currentUser?.role === 'Koordinator' && jadwal.find(j=> j && j.id===r.jadwalId)?.koordinatorId === currentUser.wargaId)).reduce((sum, r) => sum + r.total, 0).toLocaleString('id-ID')}
+                          Rp {rekapHarian.filter(r => {
+                            if (isAdmin) return true;
+                            if (userRole !== 'Koordinator Ronda') return false;
+                            const kId = jadwal.find(j => j && j.id === r.jadwalId)?.koordinatorId;
+                            return kId === currentUser?.wargaId || kId === currentUser?.username;
+                          }).reduce((sum, r) => sum + r.total, 0).toLocaleString('id-ID')}
                         </td>
                         <td className="print-hide"></td>
                       </tr>
@@ -2106,7 +2211,7 @@
 
       const allowedWargaIds = useMemo(() => {
         if (isAdmin) return warga.map(w => w.id);
-        const myJadwal = jadwal.filter(j => j && j.koordinatorId === currentUser?.wargaId && (!activePeriod || j.periode === activePeriod));
+        const myJadwal = jadwal.filter(j => j && (j.koordinatorId === currentUser?.wargaId || j.koordinatorId === currentUser?.username) && (!activePeriod || j.periode === activePeriod));
         const ids = new Set();
         myJadwal.forEach(j => { ids.add(j.koordinatorId); (j.anggotaIds || []).forEach(id => ids.add(id)); });
         return Array.from(ids);
@@ -2210,13 +2315,18 @@
     };
 
     const Pengaturan = ({ ctx }) => {
-      const { isAdmin, currentUser, setCurrentUser, accounts, setAccounts, settings, setSettings, warga, syncData, showToast, requestConfirm, themeColor, setThemeColor, isDarkMode, setIsDarkMode, theme, ui, jadwal } = ctx;
+      const { isAdmin, currentUser, userRole, setCurrentUser, accounts, setAccounts, settings, setSettings, warga, syncData, showToast, requestConfirm, themeColor, setThemeColor, isDarkMode, setIsDarkMode, theme, ui, jadwal, setJadwal, jimpitan, setJimpitan, absensi, setAbsensi } = ctx;
+      const isSuperAdmin = userRole === 'Super Admin';
       
       const [oldPassword, setOldPassword] = useState('');
       const [newPassword, setNewPassword] = useState('');
       const [confirmPassword, setConfirmPassword] = useState('');
       const [showAddAccountForm, setShowAddAccountForm] = useState(false);
-      const [newAccount, setNewAccount] = useState({ username: '', password: '', role: 'Koordinator', nama: '', wargaId: '' });
+      const [isEditingAccount, setIsEditingAccount] = useState(false);
+      const [editingAccountId, setEditingAccountId] = useState(null);
+      const [newAccount, setNewAccount] = useState({ username: '', password: '', role: 'Koordinator Ronda', nama: '', hariRegu: '' });
+
+      const fileInputRef = useRef(null);
 
       const handleSaveSettings = async () => {
         const success = await syncData("settings", settings);
@@ -2245,19 +2355,76 @@
 
       const handleAddAccount = async (e) => {
         e.preventDefault();
-        if (accounts.some(a => a.username.toLowerCase() === newAccount.username.toLowerCase())) return showToast('Gagal: Username digunakan!');
-        const newId = accounts.length > 0 ? Math.max(...accounts.map(a => a.id)) + 1 : 1;
-        const updatedAccounts = [...accounts, { id: newId, ...newAccount }];
-        setAccounts(updatedAccounts); 
-        const success = await syncData("accounts", updatedAccounts);
         
-        if (success) {
-            setShowAddAccountForm(false); 
-            setNewAccount({ username: '', password: '', role: 'Koordinator', nama: '', wargaId: '' });
-            showToast('Akun baru berhasil ditambahkan!');
+        let updatedAccounts;
+        let finalAccounts;
+        if (isEditingAccount) {
+          if (accounts.some(a => a.username.toLowerCase() === newAccount.username.toLowerCase() && a.id !== editingAccountId)) {
+            return showToast('Gagal: Username sudah digunakan oleh akun lain!');
+          }
+          finalAccounts = accounts.map(a => a.id === editingAccountId ? { ...a, ...newAccount } : a);
         } else {
-            showToast('Gagal menambahkan akun di server!');
+          if (accounts.some(a => a.username.toLowerCase() === newAccount.username.toLowerCase())) {
+            return showToast('Gagal: Username sudah digunakan!');
+          }
+          const newId = accounts.length > 0 ? Math.max(...accounts.map(a => a.id)) + 1 : 1;
+          finalAccounts = [...accounts, { id: newId, ...newAccount }];
         }
+
+        // Simpan Akun
+        setAccounts(finalAccounts);
+        const success = await syncData("accounts", finalAccounts);
+
+        // Jika dia koordinator dan mengatur hari regu
+        if (success) {
+          if (newAccount.role === 'Koordinator Ronda' && newAccount.hariRegu) {
+            const periodeAktif = settings.activePeriode || 'Bulan Saat Ini';
+            
+            // Cek apakah jadwal sudah ada untuk koordinator dan hari yang sama
+            const existingJadwalIndex = jadwal.findIndex(j => j.hari === newAccount.hariRegu && j.koordinatorId === newAccount.username && j.periode === periodeAktif);
+            
+            if (existingJadwalIndex === -1) {
+              const newIdJadwal = `J-${newAccount.hariRegu.toUpperCase().substring(0, 3)}-${Date.now()}`;
+              const updatedJadwal = [...jadwal, { id: newIdJadwal, hari: newAccount.hariRegu, periode: periodeAktif, koordinatorId: newAccount.username, anggotaIds: [] }];
+              setJadwal(updatedJadwal);
+              await syncData("jadwal", updatedJadwal);
+            }
+          }
+
+          setShowAddAccountForm(false);
+          setIsEditingAccount(false);
+          setEditingAccountId(null);
+          setNewAccount({ username: '', password: '', role: 'Koordinator', nama: '', wargaId: '', hariRegu: '' });
+          showToast(isEditingAccount ? 'Akun berhasil diperbarui!' : 'Akun baru berhasil ditambahkan!');
+        } else {
+          showToast('Gagal menyimpan akun di server!');
+        }
+      };
+
+      const handleEditAccountClick = (acc) => {
+        setNewAccount({ 
+          username: acc.username, 
+          password: acc.password, 
+          role: acc.role, 
+          nama: acc.nama, 
+          hariRegu: '' 
+        });
+        setEditingAccountId(acc.id);
+        setIsEditingAccount(true);
+        setShowAddAccountForm(true);
+      };
+
+      const handleDeleteAccount = (acc) => {
+        if (acc.id === currentUser.id) {
+          return showToast('Gagal: Tidak bisa menghapus akun yang sedang Anda gunakan.');
+        }
+        requestConfirm(`Yakin ingin menghapus akun '${acc.username}'?`, async () => {
+          const updated = accounts.filter(a => a.id !== acc.id);
+          setAccounts(updated);
+          const success = await syncData("accounts", updated);
+          if (success) showToast('Akun berhasil dihapus');
+          else showToast('Gagal menghapus akun di server');
+        });
       };
 
       const handleLogoUpload = (e) => {
@@ -2307,6 +2474,77 @@
           img.src = event.target.result;
         }
         reader.readAsDataURL(file);
+      };
+
+      const handleBackupData = () => {
+        const backupData = {
+          warga,
+          jadwal,
+          absensi,
+          jimpitan,
+          accounts,
+          settings,
+          timestamp: new Date().toISOString()
+        };
+        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Backup_Jimpitan_${getLocalToday()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Data berhasil di-backup (Diunduh)!');
+      };
+
+      const handleResetTahunan = () => {
+        requestConfirm('PERINGATAN FATAL: Aksi ini akan MENGHAPUS SEMUA DATA ABSENSI DAN JIMPITAN. Pastikan Anda sudah mem-backup data terlebih dahulu. Lanjutkan?', async () => {
+          setAbsensi([]);
+          setJimpitan([]);
+          showToast('Menghapus data absensi dan jimpitan di server...');
+          await syncData('absensi', []);
+          await syncData('jimpitan', []);
+          showToast('Data Transaksi Tahunan berhasil direset!');
+        });
+      };
+
+      const handleRestoreData = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        requestConfirm('PERINGATAN: Memulihkan data (Restore) akan menimpa/mengganti seluruh data yang ada saat ini. Anda yakin?', () => {
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            try {
+              const data = JSON.parse(event.target.result);
+              if (data.warga && data.jadwal && data.absensi && data.jimpitan && data.accounts && data.settings) {
+                // Update Local State
+                setWarga(data.warga);
+                setJadwal(data.jadwal);
+                setAbsensi(data.absensi);
+                setJimpitan(data.jimpitan);
+                setAccounts(data.accounts.map(a => a.role === 'Koordinator' ? { ...a, role: 'Koordinator Ronda' } : a));
+                setSettings(data.settings);
+
+                // Sync to Server (Batch process could take time)
+                showToast('Mulai mengunggah data ke server...');
+                await syncData('warga', data.warga);
+                await syncData('jadwal', data.jadwal);
+                await syncData('absensi', data.absensi);
+                await syncData('jimpitan', data.jimpitan);
+                await syncData('accounts', data.accounts);
+                await syncData('settings', data.settings);
+
+                showToast('Pemulihan data berhasil!');
+                e.target.value = null; // reset input
+              } else {
+                showToast('Gagal: Format file backup tidak valid.');
+              }
+            } catch (err) {
+              showToast('Gagal: File JSON rusak atau tidak terbaca.');
+            }
+          };
+          reader.readAsText(file);
+        });
       };
 
       return (
@@ -2378,26 +2616,44 @@
                 </div>
 
                 <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-end">
-                  <button onClick={handleSaveSettings} className={`${theme.main} text-white px-6 py-2.5 rounded-lg font-bold w-full md:w-auto shadow-md hover:opacity-90 transition`}>
-                    Simpan Web Settings
+                  <button onClick={handleSaveSettings} className={`${theme.main} text-white px-6 py-2.5 rounded-lg font-bold w-full md:w-auto shadow-md hover:opacity-90 transition flex gap-2 items-center justify-center`}>
+                    <Save size={18}/> Simpan Web Settings
                   </button>
                 </div>
               </div>
+            </>
+          )}
 
-              <div className={`${ui.card} rounded-xl overflow-hidden`}>
-                <div className="p-5 border-b flex justify-between items-center border-gray-200 dark:border-gray-700">
+          <div className={`${ui.card} rounded-xl overflow-hidden`}>
+            <div className="p-5 border-b flex justify-between items-center border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-3">
                     <UserPlus className={theme.text} />
                     <h3 className="font-bold text-lg">Manajemen Akun</h3>
                   </div>
-                  <button onClick={() => setShowAddAccountForm(!showAddAccountForm)} className={`${theme.main} text-white px-3 py-1.5 rounded text-sm font-semibold flex gap-2 items-center`}>
-                    {showAddAccountForm ? <X size={16}/> : <Plus size={16}/>} {showAddAccountForm ? 'Batal' : 'Tambah Akun'}
-                  </button>
+                  {isAdmin && (
+                    <button onClick={() => {
+                      if (showAddAccountForm && isEditingAccount) {
+                        setNewAccount({ username: '', password: '', role: 'Koordinator Ronda', nama: '', hariRegu: '' });
+                        setIsEditingAccount(false);
+                        setEditingAccountId(null);
+                      } else if (showAddAccountForm) {
+                        setShowAddAccountForm(false);
+                      } else {
+                        setNewAccount({ username: '', password: '', role: 'Koordinator Ronda', nama: '', hariRegu: '' });
+                        setIsEditingAccount(false);
+                        setEditingAccountId(null);
+                        setShowAddAccountForm(true);
+                      }
+                    }} className={`${theme.main} text-white px-3 py-1.5 rounded text-sm font-semibold flex gap-2 items-center`}>
+                      {showAddAccountForm ? <X size={16}/> : <Plus size={16}/>} {showAddAccountForm ? 'Batal' : 'Tambah Akun'}
+                    </button>
+                  )}
                 </div>
                 
-                {showAddAccountForm && (
-                  <form onSubmit={handleAddAccount} className="p-5 border-b border-gray-200 dark:border-gray-700">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {isAdmin && showAddAccountForm && (
+                  <form onSubmit={handleAddAccount} className={`p-5 border-b border-gray-200 dark:border-gray-700 animate-fade-in border-l-4 border-l-${theme.text.split('-')[1]}-500 bg-gray-50/50 dark:bg-gray-800/30`}>
+                    <h4 className="font-bold mb-4">{isEditingAccount ? 'Edit Data Akun' : 'Tambah Data Akun Baru'}</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-semibold mb-1">Username</label>
                         <input required type="text" className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newAccount.username} onChange={e => setNewAccount({...newAccount, username: e.target.value})} />
@@ -2412,22 +2668,26 @@
                       </div>
                       <div>
                         <label className="block text-sm font-semibold mb-1">Role Akses</label>
-                        <select className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newAccount.role} onChange={e => setNewAccount({...newAccount, role: e.target.value, wargaId: ''})}>
-                          <option value="Koordinator">Koordinator Regu</option>
+                        <select className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newAccount.role} onChange={e => setNewAccount({...newAccount, role: e.target.value, hariRegu: ''})}>
+                          <option value="Koordinator Ronda">Koordinator Ronda</option>
                           <option value="Admin Jimpitan">Admin Jimpitan</option>
+                          {isSuperAdmin && <option value="Super Admin">Super Admin</option>}
                         </select>
                       </div>
-                      {newAccount.role === 'Koordinator' && (
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-semibold mb-1">Tautkan ke Data Warga</label>
-                          <select required className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newAccount.wargaId} onChange={e => setNewAccount({...newAccount, wargaId: e.target.value})}>
-                            <option value="">-- Pilih Warga --</option>
-                            {warga.map(w => <option key={w.id} value={w.id}>{w.id} - {w.nama}</option>)}
+                      {newAccount.role === 'Koordinator Ronda' && (
+                        <div>
+                          <label className="block text-sm font-semibold mb-1">Jadwal Regu Ronda (Otomatis Buat)</label>
+                          <select className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newAccount.hariRegu} onChange={e => setNewAccount({...newAccount, hariRegu: e.target.value})}>
+                            <option value="">-- Tidak Set Jadwal Baru --</option>
+                            {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map(h => <option key={h} value={h}>{h}</option>)}
                           </select>
+                          <p className="text-[10px] text-gray-500 mt-1">*Jika dipilih, jadwal akan otomatis dibuat untuk hari ini di periode aktif.</p>
                         </div>
                       )}
                     </div>
-                    <button type="submit" className={`mt-4 px-6 py-2.5 rounded-lg text-sm font-bold text-white w-full md:w-auto shadow ${theme.main}`}>Simpan Akun Baru</button>
+                    <button type="submit" className={`mt-5 px-6 py-2.5 rounded-lg text-sm font-bold text-white w-full md:w-auto shadow ${theme.main}`}>
+                      {isEditingAccount ? 'Simpan Perubahan Akun' : 'Simpan Akun Baru'}
+                    </button>
                   </form>
                 )}
                 
@@ -2441,9 +2701,30 @@
                       </tr>
                     </thead>
                     <tbody>
-                      {accounts.map(acc => {
-                        const isKoordinator = jadwal.filter(j => j && j.koordinatorId === acc.wargaId).map(j => j.hari);
-                        const isAnggota = jadwal.filter(j => j && (j.anggotaIds || []).includes(acc.wargaId)).map(j => j.hari);
+                      {accounts
+                        .filter(acc => {
+                           if (userRole === 'Super Admin') return true;
+                           if (userRole === 'Admin Jimpitan') return acc.role !== 'Super Admin';
+                           if (userRole === 'Koordinator Ronda') return acc.username === currentUser?.username;
+                           return false;
+                        })
+                        .sort((a, b) => {
+                           const getDayWeight = (username) => {
+                               const jdw = jadwal.find(j => j && j.koordinatorId === username);
+                               if (!jdw || !jdw.hari) return 99;
+                               const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+                               const idx = days.indexOf(jdw.hari);
+                               return idx === -1 ? 99 : idx;
+                           };
+                           const weightA = getDayWeight(a.username);
+                           const weightB = getDayWeight(b.username);
+                           if (weightA !== weightB) return weightA - weightB;
+                           if (a.role !== b.role) return a.role.localeCompare(b.role);
+                           return (a.username || '').localeCompare(b.username || '');
+                        })
+                        .map(acc => {
+                        const isKoordinator = jadwal.filter(j => j && (j.koordinatorId === acc.wargaId || j.koordinatorId === acc.username)).map(j => j.hari);
+                        const isAnggota = jadwal.filter(j => j && ((j.anggotaIds || []).includes(acc.wargaId) || (j.anggotaIds || []).includes(acc.username))).map(j => j.hari);
                         return (
                           <tr key={acc.id} className={`border-b ${ui.tableRow}`}>
                             <td className="p-4">
@@ -2463,9 +2744,14 @@
                               )}
                             </td>
                             <td className="p-4 text-center">
-                              <button onClick={() => { if(acc.id !== currentUser.id) { requestConfirm("Yakin ingin menghapus akun ini?", async () => { const ud = accounts.filter(a=>a.id!==acc.id); setAccounts(ud); const success = await syncData("accounts", ud); if(success) showToast('Akun Dihapus'); else showToast('Gagal menghapus'); }) } else { showToast('Gagal: Tidak bisa menghapus akun sendiri'); } }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-full transition">
-                                <Trash2 size={16} />
-                              </button>
+                              <div className="flex items-center justify-center gap-2">
+                                <button onClick={() => handleEditAccountClick(acc)} className="text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-2 rounded-full transition" title="Edit Akun">
+                                  <Edit size={16} />
+                                </button>
+                                <button onClick={() => handleDeleteAccount(acc)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-full transition" title="Hapus Akun">
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         )
@@ -2474,8 +2760,44 @@
                   </table>
                 </div>
               </div>
-            </>
-          )}
+
+              {/* Tambahan Backup & Restore Database */}
+              {isSuperAdmin && (
+                <div className={`${ui.card} rounded-xl overflow-hidden border-t-4 border-t-orange-500`}>
+                  <div className="p-5 border-b flex justify-between items-center border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                      <Database className="text-orange-500" />
+                      <h3 className="font-bold text-lg">Keamanan Database (Backup & Restore)</h3>
+                    </div>
+                  </div>
+                  <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div>
+                      <h4 className="font-bold text-gray-800 dark:text-gray-200 mb-2">Export Data (Backup)</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Unduh seluruh data (Warga, Jadwal, Absensi, Jimpitan, Akun) dalam format file JSON. Sangat disarankan dilakukan rutin tiap bulan/tahun baru.</p>
+                      <button onClick={handleBackupData} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition shadow">
+                        <Download size={18} /> Download Backup (.json)
+                      </button>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-800 dark:text-gray-200 mb-2">Import Data (Restore)</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-red-500">Peringatan: Proses ini akan menimpa seluruh data yang ada saat ini dengan data dari file JSON yang Anda pilih.</p>
+                      
+                      <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleRestoreData} />
+                      <button onClick={() => fileInputRef.current.click()} className="w-full sm:w-auto bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition shadow">
+                        <Upload size={18} /> Restore dari (.json)
+                      </button>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-800 dark:text-gray-200 mb-2">Reset Tahunan</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 text-red-500">Menghapus data absensi dan kas jimpitan untuk memulai periode baru. Data warga, jadwal, dan akun tetap aman.</p>
+                      
+                      <button onClick={handleResetTahunan} className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition shadow">
+                        <Trash2 size={18} /> Reset Data Transaksi
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
           <div className={`${ui.card} rounded-xl overflow-hidden`}>
             <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3"><KeyRound className={theme.text} /><h3 className="font-bold text-lg">Ubah Password Akun</h3></div>
@@ -2535,6 +2857,35 @@
       const [toastMessage, setToastMessage] = useState(null);
       const [confirmDialog, setConfirmDialog] = useState(null);
       
+      const [deferredPrompt, setDeferredPrompt] = useState(null);
+      const [isInstallDismissed, setIsInstallDismissed] = useState(() => {
+        try { return localStorage.getItem('isInstallDismissed') === 'true'; } catch(e) { return false; }
+      });
+
+      useEffect(() => {
+        const handler = (e) => {
+          e.preventDefault();
+          setDeferredPrompt(e);
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+      }, []);
+
+      const handleInstallClick = async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          if (outcome === 'accepted') {
+            setDeferredPrompt(null);
+          }
+        }
+      };
+      
+      const handleDismissInstall = () => {
+        setIsInstallDismissed(true);
+        try { localStorage.setItem('isInstallDismissed', 'true'); } catch(e) {}
+      };
+      
       const [warga, setWarga] = useState([]);
       const [jadwal, setJadwal] = useState([]);
       const [absensi, setAbsensi] = useState([]);
@@ -2593,7 +2944,8 @@
               setJadwal(dbData.jadwal && dbData.jadwal.length > 0 ? dbData.jadwal : initialJadwal);
               setAbsensi(dbData.absensi && dbData.absensi.length > 0 ? dbData.absensi : initialAbsensi);
               setJimpitan(dbData.jimpitan && dbData.jimpitan.length > 0 ? dbData.jimpitan : initialJimpitan);
-              setAccounts(dbData.accounts && dbData.accounts.length > 0 ? dbData.accounts : initialAccounts);
+              const loadedAccounts = dbData.accounts && dbData.accounts.length > 0 ? dbData.accounts : initialAccounts;
+              setAccounts(loadedAccounts.map(a => a.role === 'Koordinator' ? { ...a, role: 'Koordinator Ronda' } : a));
               
               const rawSettings = dbData.settings || {};
               setSettings({
@@ -2642,19 +2994,27 @@
         tableRow: isDarkMode ? 'border-gray-700 hover:bg-gray-750' : 'border-gray-200 hover:bg-gray-50',
       };
 
-      const getWargaName = (id) => warga.find(w => w && w.id === id)?.nama || 'Unknown';
-      const userRole = isPublicView ? 'Publik' : currentUser?.role;
-      const isAdmin = currentUser?.role === 'Admin Jimpitan';
+      const getWargaName = (id) => {
+        const w = warga.find(w => w && w.id === id);
+        if (w) return w.nama;
+        const acc = accounts.find(a => a.username === id);
+        if (acc) return acc.nama;
+        return id || 'Unknown';
+      };
+      const rawRole = isPublicView ? 'Publik' : currentUser?.role;
+      const userRole = rawRole === 'Koordinator' ? 'Koordinator Ronda' : rawRole;
+      const isSuperAdmin = userRole === 'Super Admin';
+      const isAdmin = userRole === 'Super Admin' || userRole === 'Admin Jimpitan';
 
       const allMenuItems = [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Admin Jimpitan', 'Koordinator', 'Publik'] },
-        { id: 'warga', label: 'Data Warga', icon: Users, roles: ['Admin Jimpitan'] },
-        { id: 'cetak_barcode', label: 'Cetak Barcode QR', icon: QrCode, roles: ['Admin Jimpitan'] },
-        { id: 'jadwal_absen', label: 'Jadwal & Absen', icon: CalendarDays, roles: ['Admin Jimpitan', 'Koordinator'] },
-        { id: 'scan_keliling', label: 'Scan Jimpitan', icon: Camera, roles: ['Admin Jimpitan', 'Koordinator'] },
-        { id: 'rekap', label: 'Rekap Laporan', icon: ClipboardList, roles: ['Admin Jimpitan', 'Koordinator'] },
-        { id: 'rekap_denda', label: 'Rekap Denda', icon: Wallet, roles: ['Admin Jimpitan'] },
-        { id: 'pengaturan', label: 'Pengaturan', icon: Settings, roles: ['Admin Jimpitan', 'Koordinator'] },
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Super Admin', 'Admin Jimpitan', 'Koordinator Ronda', 'Publik'] },
+        { id: 'warga', label: 'Data Warga', icon: Users, roles: ['Super Admin', 'Admin Jimpitan'] },
+        { id: 'cetak_barcode', label: 'Cetak Barcode QR', icon: QrCode, roles: ['Super Admin'] },
+        { id: 'jadwal_absen', label: 'Jadwal & Absen', icon: CalendarDays, roles: ['Super Admin', 'Admin Jimpitan', 'Koordinator Ronda'] },
+        { id: 'scan_keliling', label: 'Scan Jimpitan', icon: Camera, roles: ['Super Admin', 'Koordinator Ronda'] },
+        { id: 'rekap', label: 'Rekap Laporan', icon: ClipboardList, roles: ['Super Admin', 'Admin Jimpitan', 'Koordinator Ronda'] },
+        { id: 'rekap_denda', label: 'Rekap Denda', icon: Wallet, roles: ['Super Admin', 'Admin Jimpitan'] },
+        { id: 'pengaturan', label: 'Pengaturan', icon: Settings, roles: ['Super Admin', 'Admin Jimpitan', 'Koordinator Ronda'] },
       ];
 
       const menuItems = allMenuItems.filter(m => m.roles.includes(userRole));
@@ -2681,9 +3041,26 @@
         return <LoginScreen ctx={ctx} />;
       }
       
+      const installBanner = deferredPrompt && !isInstallDismissed ? (
+        <div className="bg-emerald-600 text-white p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md z-[9999] relative">
+          <div className="flex items-center gap-3">
+            <Download size={24} className="shrink-0" />
+            <div className="text-sm">
+              <p className="font-bold">Install Aplikasi e-Jimpitan</p>
+              <p className="opacity-90 text-xs">Akses lebih cepat langsung dari layar utama perangkat Anda.</p>
+            </div>
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button onClick={handleInstallClick} className="bg-white text-emerald-600 font-bold px-4 py-1.5 rounded flex-1 sm:flex-none hover:bg-emerald-50 transition">Install</button>
+            <button onClick={handleDismissInstall} className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-4 py-1.5 rounded flex-1 sm:flex-none transition">Nanti</button>
+          </div>
+        </div>
+      ) : null;
+
       if (isPublicView) {
         return (
           <div className={`min-h-screen font-sans ${ui.bg}`}>
+            {installBanner}
             {dbError && (
                <div className="bg-red-500 text-white text-center text-xs py-1 px-4 font-semibold">
                   Gagal terhubung ke server database (Google Apps Script). Menggunakan data default (Offline Mode).
@@ -2808,6 +3185,7 @@
           </aside>
 
           <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {installBanner}
             <header className={`shadow-sm border-b p-4 flex justify-between items-center print-hide ${ui.sidebar}`}>
               <div className="flex items-center gap-3">
                 <button onClick={() => window.innerWidth >= 768 ? setIsDesktopSidebarOpen(!isDesktopSidebarOpen) : setIsMobileMenuOpen(true)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-gray-600 dark:text-gray-300">
@@ -2841,6 +3219,15 @@
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.log('SW registration failed: ', err);
+        });
+      });
+    }
   </script>
 </body>
 </html>
