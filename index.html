@@ -522,14 +522,14 @@
                 <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">Daftar Regu Ronda Aktif & Koordinator</h3>
               </div>
               
-              {activeJadwal.filter(j => j.anggotaIds && j.anggotaIds.length > 0).length === 0 ? (
+              {activeJadwal.length === 0 ? (
                 <div className={`${ui.card} p-8 rounded-xl text-center border border-dashed border-gray-300 dark:border-gray-700`}>
                   <CalendarDays size={48} className="mx-auto text-gray-400 mb-3 opacity-50" />
                   <p className="text-gray-500 font-medium">Belum ada regu yang dijadwalkan pada periode ini.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
-                  {activeJadwal.filter(j => j.anggotaIds && j.anggotaIds.length > 0).map(j => (
+                  {activeJadwal.map(j => (
                     <div key={j.id} className={`${ui.card} relative overflow-hidden rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-300 group`}>
                       {/* Aksen Garis Warna di Atas Kotak */}
                       <div className={`h-1.5 w-full ${theme.main}`}></div>
@@ -553,8 +553,22 @@
                               <span className="truncate">{getWargaName(j.koordinatorId)}</span>
                             </div>
                           </div>
-                          
-
+                          {/* Daftar Anggota dengan Desain Chips/Badge */}
+                          <div>
+                            <span className="text-[8px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5 sm:mb-2">Anggota ({j.anggotaIds ? j.anggotaIds.length : 0})</span>
+                            <div className="flex flex-wrap gap-1 sm:gap-1.5">
+                              {j.anggotaIds && j.anggotaIds.length > 0 ? (
+                                j.anggotaIds.map(id => (
+                                  <span key={id} className="flex items-center gap-1 sm:gap-1.5 text-[9px] sm:text-[11px] font-medium bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-gray-700 dark:text-gray-300 truncate max-w-full">
+                                    <UserCircle size={10} className="opacity-60 shrink-0" />
+                                    <span className="truncate">{getWargaName(id)}</span>
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-[9px] sm:text-xs text-gray-400 italic font-medium bg-gray-50 dark:bg-gray-800 px-2 sm:px-3 py-1 rounded-md border border-gray-100 dark:border-gray-700">Kosong</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2378,7 +2392,9 @@
         // Jika dia koordinator dan mengatur hari regu
         if (success) {
           if (newAccount.role === 'Koordinator Ronda' && newAccount.hariRegu) {
-            const periodeAktif = settings.activePeriode || 'Bulan Saat Ini';
+            const allPeriods = [...new Set(jadwal.map(x => x && x.periode).filter(Boolean))];
+            const fallbackPeriod = allPeriods.length > 0 ? allPeriods[allPeriods.length - 1] : 'Bulan Saat Ini';
+            const periodeAktif = settings.activePeriode || fallbackPeriod;
             
             // Cek apakah jadwal sudah ada untuk koordinator dan hari yang sama
             const existingJadwalIndex = jadwal.findIndex(j => j.hari === newAccount.hariRegu && j.koordinatorId === newAccount.username && j.periode === periodeAktif);
@@ -2941,7 +2957,15 @@
               });
               
               setWarga(cleanWarga);
-              setJadwal(dbData.jadwal && dbData.jadwal.length > 0 ? dbData.jadwal : initialJadwal);
+              let loadedJadwal = dbData.jadwal && dbData.jadwal.length > 0 ? dbData.jadwal : initialJadwal;
+              const validPeriods = loadedJadwal.map(j => j.periode).filter(p => p && p !== 'Bulan Saat Ini');
+              if (validPeriods.length > 0) {
+                 const counts = {};
+                 validPeriods.forEach(p => counts[p] = (counts[p] || 0) + 1);
+                 const mostCommonPeriod = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+                 loadedJadwal = loadedJadwal.map(j => j.periode === 'Bulan Saat Ini' ? { ...j, periode: rawSettings.activePeriode || mostCommonPeriod } : j);
+              }
+              setJadwal(loadedJadwal);
               setAbsensi(dbData.absensi && dbData.absensi.length > 0 ? dbData.absensi : initialAbsensi);
               setJimpitan(dbData.jimpitan && dbData.jimpitan.length > 0 ? dbData.jimpitan : initialJimpitan);
               const loadedAccounts = dbData.accounts && dbData.accounts.length > 0 ? dbData.accounts : initialAccounts;
