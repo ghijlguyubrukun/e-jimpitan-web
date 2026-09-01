@@ -196,6 +196,13 @@
       return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700">KOSONG</span>;
     };
 
+    const getStatusJimpitanBadge = (status) => {
+      if (status === 'Nonaktif') {
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-gray-300 text-gray-800">NONAKTIF</span>;
+      }
+      return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700">AKTIF</span>;
+    };
+
     const LucideIcon = ({ name, size = 24, className = "" }) => {
       const spanRef = useRef(null);
       useEffect(() => {
@@ -250,9 +257,9 @@
     const Upload = (p) => <LucideIcon name="upload" {...p} />;
 
     const initialWarga = [
-      { id: 'H-01', nama: 'Budi Santoso', alamat: 'Blok H No 1', hp: '08123456789', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni' },
-      { id: 'H-02', nama: 'Andi Pratama', alamat: 'Blok H No 2', hp: '08123456780', statusWarga: 'Kontrak', ketRumah: 'Ada Penghuni' },
-      { id: 'G-01', nama: 'Siti Aminah', alamat: 'Blok G No 1', hp: '08129876543', statusWarga: 'Kosong', ketRumah: 'Rumah Kosong' }
+      { id: 'H-01', nama: 'Budi Santoso', alamat: 'Blok H No 1', hp: '08123456789', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni', statusJimpitan: 'Aktif' },
+      { id: 'H-02', nama: 'Andi Pratama', alamat: 'Blok H No 2', hp: '08123456780', statusWarga: 'Kontrak', ketRumah: 'Ada Penghuni', statusJimpitan: 'Aktif' },
+      { id: 'G-01', nama: 'Siti Aminah', alamat: 'Blok G No 1', hp: '08129876543', statusWarga: 'Kosong', ketRumah: 'Rumah Kosong', statusJimpitan: 'Nonaktif' }
     ];
     const initialJadwal = [
       { id: 'J-SEN', hari: 'Senin', periode: 'Bulan Juni - Agustus 2026', koordinatorId: 'H-01', anggotaIds: ['H-02'] }
@@ -396,7 +403,7 @@
       const currentYearDisplay = new Date().getFullYear().toString();
 
       const rekapWarga = useMemo(() => {
-        return ctx.warga.map(w => {
+        return ctx.warga.filter(w => w.statusJimpitan !== 'Nonaktif').map(w => {
           // Khusus Jimpitan: Hanya ambil nominal di bulan dan tahun saat ini
           const txJimpitanBulanIni = jimpitan.filter(t => t && t.wargaId === w.id && t.bulan === currentMonthDisplay && t.tahun === currentYearDisplay);
           
@@ -622,6 +629,7 @@
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {getStatusWargaBadge(r.statusWarga || 'Penghuni Tetap')}
                             {getKetRumahBadge(r.ketRumah || 'Ada Penghuni')}
+                            {getStatusJimpitanBadge(r.statusJimpitan || 'Aktif')}
                           </div>
                         </td>
                         <td className="p-3 sm:p-4 text-center font-medium text-gray-600 dark:text-gray-300">
@@ -666,63 +674,63 @@
     };
 
     const DataWarga = ({ ctx }) => {
-      const { warga, setWarga, syncData, showToast, requestConfirm, theme, ui } = ctx;
+      const { warga, setWarga, jimpitan, setJimpitan, syncData, showToast, requestConfirm, theme, ui } = ctx;
       const [showForm, setShowForm] = useState(false);
       const [isEditing, setIsEditing] = useState(false);
       
-      const [newWarga, setNewWarga] = useState({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni' });
+      const [newWarga, setNewWarga] = useState({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni', statusJimpitan: 'Aktif' });
 
       const handleAddWarga = async (e) => {
         e.preventDefault();
         const idCustom = newWarga.idBaru.trim().toUpperCase();
         
-        if(!idCustom) return showToast("ID Barcode tidak boleh kosong!");
-        
         let updatedWarga;
         if (isEditing) {
-          if (idCustom !== newWarga.oldId && warga.some(w => w.id === idCustom)) {
+          if (newWarga.oldId !== idCustom && warga.some(w => w.id === idCustom)) {
             showToast(`PERINGATAN: ID Barcode "${idCustom}" sudah dipakai oleh warga lain!`);
             return;
           }
-          updatedWarga = warga.map(w => w.id === newWarga.oldId ? { ...w, id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp, statusWarga: newWarga.statusWarga, ketRumah: newWarga.ketRumah } : w);
+          updatedWarga = warga.map(w => w.id === newWarga.oldId ? { ...w, id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp, statusWarga: newWarga.statusWarga, ketRumah: newWarga.ketRumah, statusJimpitan: newWarga.statusJimpitan } : w);
         } else {
           if(warga.some(w => w.id === idCustom)) {
             showToast(`PERINGATAN: ID Barcode "${idCustom}" sudah dipakai oleh warga lain!`);
             return;
           }
-          updatedWarga = [...warga, { id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp, statusWarga: newWarga.statusWarga, ketRumah: newWarga.ketRumah }];
+          updatedWarga = [...warga, { id: idCustom, nama: newWarga.nama, alamat: newWarga.alamat, hp: newWarga.hp, statusWarga: newWarga.statusWarga, ketRumah: newWarga.ketRumah, statusJimpitan: newWarga.statusJimpitan }];
         }
         
         updatedWarga.sort((a, b) => a.id.localeCompare(b.id));
         setWarga(updatedWarga);
         setShowForm(false);
         
-        const isSuccess = await syncData("warga", updatedWarga);
-        if (isSuccess) {
+        const success = await syncData("warga", updatedWarga);
+        if (success) {
           showToast(isEditing ? 'Data warga berhasil diperbarui!' : 'Data warga berhasil ditambahkan!');
           setIsEditing(false);
-          setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni' });
+          setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni', statusJimpitan: 'Aktif' });
         } else {
           showToast('Gagal menyimpan ke server, namun data tersimpan di lokal (browser).');
         }
       };
 
       const handleEditClick = (w) => {
-        setNewWarga({ oldId: w.id, idBaru: w.id, nama: w.nama, alamat: w.alamat, hp: w.hp, statusWarga: w.statusWarga || 'Penghuni Tetap', ketRumah: w.ketRumah || 'Ada Penghuni' });
+        setNewWarga({ oldId: w.id, idBaru: w.id, nama: w.nama, alamat: w.alamat, hp: w.hp, statusWarga: w.statusWarga || 'Penghuni Tetap', ketRumah: w.ketRumah || 'Ada Penghuni', statusJimpitan: w.statusJimpitan || 'Aktif' });
         setIsEditing(true);
         setShowForm(true);
       };
 
       const handleDeleteWarga = (id) => {
-        requestConfirm('Apakah Anda yakin ingin menghapus data warga ini?', async () => {
-          const updatedWarga = warga.filter(x => x.id !== id);
+        requestConfirm('Apakah Anda yakin ingin menghapus data warga ini beserta semua riwayat jimpitannya?', async () => {
+          const updatedWarga = warga.filter(w => w.id !== id);
           setWarga(updatedWarga);
-          const isSuccess = await syncData("warga", updatedWarga);
-          if (isSuccess) {
-              showToast('Warga berhasil dihapus');
-          } else {
-              showToast('Gagal menghapus dari server!');
-          }
+          
+          const updatedJimpitan = jimpitan.filter(t => t.wargaId !== id);
+          setJimpitan(updatedJimpitan);
+          
+          await syncData("warga", updatedWarga);
+          await syncData("jimpitan", updatedJimpitan);
+          
+          showToast('Data warga dan riwayatnya berhasil dihapus');
         });
       };
 
@@ -730,7 +738,7 @@
         <div className="space-y-6 animate-fade-in">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold">Data Warga & Tim Ronda</h2>
-            <button onClick={() => { setShowForm(!showForm); setIsEditing(false); setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni' }); }} className={`${theme.main} text-white px-4 py-2 rounded-lg shadow hover:opacity-90 flex items-center gap-2`}>
+            <button onClick={() => { setShowForm(!showForm); setIsEditing(false); setNewWarga({ oldId: '', idBaru: '', nama: '', alamat: '', hp: '', statusWarga: 'Penghuni Tetap', ketRumah: 'Ada Penghuni', statusJimpitan: 'Aktif' }); }} className={`${theme.main} text-white px-4 py-2 rounded-lg shadow hover:opacity-90 flex items-center gap-2`}>
               {showForm ? <X size={18} /> : <Plus size={18} />} {showForm ? 'Batal' : 'Tambah Warga'}
             </button>
           </div>
@@ -765,7 +773,14 @@
                     <option value="Rumah Kosong">Rumah Kosong</option>
                   </select>
                 </div>
-                <div className="lg:col-span-1 md:col-span-2">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Status Jimpitan & Laporan</label>
+                  <select className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newWarga.statusJimpitan} onChange={e => setNewWarga({...newWarga, statusJimpitan: e.target.value})}>
+                    <option value="Aktif">Aktif (Ikut Jimpitan & Tampil di Laporan)</option>
+                    <option value="Nonaktif">Nonaktif (Kosong / Tidak Tampil di Laporan)</option>
+                  </select>
+                </div>
+                <div className="lg:col-span-3 md:col-span-2">
                   <label className="block text-sm font-semibold mb-1">Alamat Lengkap</label>
                   <input required type="text" className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newWarga.alamat} onChange={e => setNewWarga({...newWarga, alamat: e.target.value})} />
                 </div>
@@ -806,6 +821,9 @@
                           </span>
                           <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase ${w.ketRumah === 'Rumah Kosong' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
                             {w.ketRumah || 'Ada Penghuni'}
+                          </span>
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase ${w.statusJimpitan === 'Nonaktif' ? 'bg-gray-200 text-gray-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                            JIMPITAN {w.statusJimpitan || 'Aktif'}
                           </span>
                         </div>
                       </td>
@@ -1084,15 +1102,13 @@
         <div className="space-y-6 animate-fade-in">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h2 className="text-2xl font-bold">Jadwal & Absensi Ronda</h2>
-            {isAdmin && (
-              <div className={`flex bg-gray-200 dark:bg-gray-700 p-1 rounded-lg`}>
-                <button onClick={() => setSubTab('input_absen')} className={`px-4 py-2 rounded-md text-sm font-semibold transition ${subTab === 'input_absen' ? 'bg-white shadow dark:bg-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>Input Absen Harian</button>
-                <button onClick={() => setSubTab('atur_jadwal')} className={`px-4 py-2 rounded-md text-sm font-semibold transition ${subTab === 'atur_jadwal' ? 'bg-white shadow dark:bg-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>Atur Jadwal</button>
-              </div>
-            )}
+            <div className={`flex bg-gray-200 dark:bg-gray-700 p-1 rounded-lg`}>
+              <button onClick={() => setSubTab('input_absen')} className={`px-4 py-2 rounded-md text-sm font-semibold transition ${subTab === 'input_absen' ? 'bg-white shadow dark:bg-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>Input Absen Harian</button>
+              <button onClick={() => setSubTab('atur_jadwal')} className={`px-4 py-2 rounded-md text-sm font-semibold transition ${subTab === 'atur_jadwal' ? 'bg-white shadow dark:bg-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>{isAdmin ? 'Atur Jadwal' : 'Info Regu Saya'}</button>
+            </div>
           </div>
 
-          {subTab === 'input_absen' || !isAdmin ? (
+          {subTab === 'input_absen' ? (
             <div className={`${ui.card} p-6 rounded-xl`}>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
@@ -1283,9 +1299,11 @@
                       {periodeOptionsJadwal.map(p => <option key={p} value={p}>{p === 'Semua' ? 'Semua Periode' : p}</option>)}
                     </select>
                   )}
-                  <button onClick={() => setShowAddJadwal(!showAddJadwal)} className={`${theme.main} text-white px-4 py-2 rounded-lg shadow flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap`}>
-                    {showAddJadwal ? <X size={18} /> : <Plus size={18} />} Tambah Jadwal Baru
-                  </button>
+                  {isAdmin && (
+                    <button onClick={() => setShowAddJadwal(!showAddJadwal)} className={`${theme.main} text-white px-4 py-2 rounded-lg shadow flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap`}>
+                      {showAddJadwal ? <X size={18} /> : <Plus size={18} />} Tambah Jadwal Baru
+                    </button>
+                  )}
                 </div>
               </div>
               
@@ -1306,13 +1324,13 @@
                       <label className="block text-sm font-semibold mb-1">Koordinator</label>
                       <select required className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newJadwal.koordinatorId} onChange={e => setNewJadwal({...newJadwal, koordinatorId: e.target.value})}>
                         <option value="">-- Pilih --</option>
-                        {ctx.warga.map(w => <option key={w.id} value={w.id}>{w.nama} ({w.id})</option>)}
+                        {ctx.warga.filter(w => w.statusJimpitan !== 'Nonaktif').map(w => <option key={w.id} value={w.id}>{w.nama} ({w.id})</option>)}
                       </select>
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold mb-3">Anggota Regu (Multiselect)</label>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {ctx.warga.filter(w => w.id !== newJadwal.koordinatorId).map(w => (
+                        {ctx.warga.filter(w => w.id !== newJadwal.koordinatorId && w.statusJimpitan !== 'Nonaktif').map(w => (
                           <label key={w.id} className="flex items-center gap-3 p-2 border rounded cursor-pointer">
                             <input type="checkbox" checked={newJadwal.anggotaIds.includes(w.id)} onChange={(e) => setNewJadwal({...newJadwal, anggotaIds: e.target.checked ? [...newJadwal.anggotaIds, w.id] : newJadwal.anggotaIds.filter(id => id !== w.id)})} />
                             <span className="text-sm">{w.nama}</span>
@@ -1334,7 +1352,9 @@
                           <h3 className="text-xl font-bold mb-1">Hari {j.hari}</h3>
                           <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">Periode: {j.periode}</span>
                         </div>
-                        <button onClick={() => handleDeleteJadwal(j.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={18} /></button>
+                        {isAdmin && (
+                          <button onClick={() => handleDeleteJadwal(j.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={18} /></button>
+                        )}
                       </div>
                       <div className="space-y-3 mb-4">
                         <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded border dark:border-gray-600">
@@ -1347,7 +1367,9 @@
                             {j.anggotaIds.map(aId => (
                               <li key={aId} className="flex items-center justify-between px-3 py-2 rounded border dark:border-gray-700">
                                 <div className="flex items-center gap-2"><Users size={16} className="text-blue-400"/> {getWargaName(aId)}</div>
-                                <button type="button" onClick={() => handleRemoveMemberFromRegu(j.id, aId)} className="text-red-400 hover:text-red-600" title="Hapus Anggota"><X size={14} /></button>
+                                {isAdmin && (
+                                  <button type="button" onClick={() => handleRemoveMemberFromRegu(j.id, aId)} className="text-red-400 hover:text-red-600" title="Hapus Anggota"><X size={14} /></button>
+                                )}
                               </li>
                             ))}
                           </ul>
@@ -1355,18 +1377,20 @@
                       </div>
                     </div>
                     
-                    <div className="mt-2 pt-4 border-t border-gray-100 dark:border-gray-700">
-                      <select 
-                        className={`w-full p-2 rounded border ${ui.input} text-sm`} 
-                        onChange={(e) => { handleAddMemberToRegu(j.id, e.target.value); e.target.value = ''; }}
-                        defaultValue=""
-                      >
-                        <option value="" disabled>+ Tambah Anggota Ronda...</option>
-                        {ctx.warga.filter(w => w.id !== j.koordinatorId && !j.anggotaIds.includes(w.id)).map(w => (
-                          <option key={w.id} value={w.id}>{w.nama}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {isAdmin && (
+                      <div className="mt-2 pt-4 border-t border-gray-100 dark:border-gray-700">
+                        <select 
+                          className={`w-full p-2 rounded border ${ui.input} text-sm`} 
+                          onChange={(e) => { handleAddMemberToRegu(j.id, e.target.value); e.target.value = ''; }}
+                          defaultValue=""
+                        >
+                          <option value="" disabled>+ Tambah Anggota Ronda...</option>
+                          {ctx.warga.filter(w => w.id !== j.koordinatorId && !j.anggotaIds.includes(w.id) && w.statusJimpitan !== 'Nonaktif').map(w => (
+                            <option key={w.id} value={w.id}>{w.nama}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1742,6 +1766,7 @@
         }
 
         return warga
+          .filter(w => w.statusJimpitan !== 'Nonaktif')
           .filter(w => filteredWargaIds ? filteredWargaIds.includes(w.id) : true)
           .map(w => {
             const txJimpitan = filteredJimpitan.filter(t => t && t.wargaId === w.id);
@@ -2338,7 +2363,7 @@
       const [showAddAccountForm, setShowAddAccountForm] = useState(false);
       const [isEditingAccount, setIsEditingAccount] = useState(false);
       const [editingAccountId, setEditingAccountId] = useState(null);
-      const [newAccount, setNewAccount] = useState({ username: '', password: '', role: 'Koordinator Ronda', nama: '', hariRegu: '' });
+      const [newAccount, setNewAccount] = useState({ username: '', password: '', role: 'Koordinator Ronda', nama: '', wargaId: '', hariRegu: '' });
 
       const fileInputRef = useRef(null);
 
@@ -2422,7 +2447,8 @@
           username: acc.username, 
           password: acc.password, 
           role: acc.role, 
-          nama: acc.nama, 
+          nama: acc.nama,
+          wargaId: acc.wargaId || '',
           hariRegu: '' 
         });
         setEditingAccountId(acc.id);
@@ -2649,13 +2675,13 @@
                   {isAdmin && (
                     <button onClick={() => {
                       if (showAddAccountForm && isEditingAccount) {
-                        setNewAccount({ username: '', password: '', role: 'Koordinator Ronda', nama: '', hariRegu: '' });
+                        setNewAccount({ username: '', password: '', role: 'Koordinator Ronda', nama: '', wargaId: '', hariRegu: '' });
                         setIsEditingAccount(false);
                         setEditingAccountId(null);
                       } else if (showAddAccountForm) {
                         setShowAddAccountForm(false);
                       } else {
-                        setNewAccount({ username: '', password: '', role: 'Koordinator Ronda', nama: '', hariRegu: '' });
+                        setNewAccount({ username: '', password: '', role: 'Koordinator Ronda', nama: '', wargaId: '', hariRegu: '' });
                         setIsEditingAccount(false);
                         setEditingAccountId(null);
                         setShowAddAccountForm(true);
@@ -2690,9 +2716,16 @@
                           {isSuperAdmin && <option value="Super Admin">Super Admin</option>}
                         </select>
                       </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Tautkan ke Data Warga (Opsional)</label>
+                        <select className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newAccount.wargaId} onChange={e => setNewAccount({...newAccount, wargaId: e.target.value})}>
+                          <option value="">-- Tidak Ditautkan --</option>
+                          {warga.map(w => <option key={w.id} value={w.id}>{w.nama}</option>)}
+                        </select>
+                      </div>
                       {newAccount.role === 'Koordinator Ronda' && (
                         <div>
-                          <label className="block text-sm font-semibold mb-1">Jadwal Regu Ronda (Otomatis Buat)</label>
+                          <label className="block text-sm font-semibold mb-1">Hari Jadwal Regu Ronda sebagai Koordinator</label>
                           <select className={`w-full p-2.5 rounded-lg border ${ui.input}`} value={newAccount.hariRegu} onChange={e => setNewAccount({...newAccount, hariRegu: e.target.value})}>
                             <option value="">-- Tidak Set Jadwal Baru --</option>
                             {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map(h => <option key={h} value={h}>{h}</option>)}
