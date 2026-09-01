@@ -386,9 +386,15 @@
       const maxJimpitan = jimpitanChartData.length > 0 ? Math.max(...jimpitanChartData.map(d => d.total)) : 1;
 
       const absenStats = useMemo(() => {
-        const stats = { Hadir: 0, Sakit: 0, Izin: 0, Kerja: 0, Alpa: 0 };
-        filteredAbsensi.forEach(a => { if (a && stats[a.status] !== undefined) stats[a.status]++; });
-        const colors = { Hadir: '#10B981', Sakit: '#F59E0B', Izin: '#3B82F6', Kerja: '#8B5CF6', Alpa: '#EF4444' };
+        const stats = { Hadir: 0, Sakit: 0, Izin: 0, Kerja: 0, Alpa: 0, 'Alpa (Lunas)': 0 };
+        filteredAbsensi.forEach(a => { 
+          if (a && a.status === 'Alpa' && a.isLunas) {
+            stats['Alpa (Lunas)']++;
+          } else if (a && stats[a.status] !== undefined) {
+            stats[a.status]++; 
+          }
+        });
+        const colors = { Hadir: '#10B981', Sakit: '#F59E0B', Izin: '#3B82F6', Kerja: '#8B5CF6', Alpa: '#EF4444', 'Alpa (Lunas)': '#10B981' };
         
         return Object.keys(stats).map(key => ({
           name: key,
@@ -416,7 +422,7 @@
             ...w,
             totalJimpitan: txJimpitanBulanIni.reduce((sum, t) => sum + (t ? Number(t.nominal) || 0 : 0), 0),
             hadir: txAbsen.filter(t => t.status === 'Hadir').length,
-            alpa: txAbsen.filter(t => t.status === 'Alpa').length,
+            alpa: alpaBelumLunas,
             denda: alpaBelumLunas * (settings.nominalDenda || 0),
           };
         });
@@ -434,13 +440,15 @@
       return (
         <div className="space-y-6 animate-fade-in print-content">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className={`${ui.card} p-5 rounded-xl flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group`}>
+            <div className={`${ui.card} p-5 rounded-xl flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group border-l-4 border-l-blue-500`}>
               <div className="flex justify-between items-start mb-2">
                 <div className="relative z-10">
                   <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Warga</p>
                   <h3 className="text-3xl font-bold mt-1 text-gray-800 dark:text-white">{totalWarga} <span className="text-sm font-normal text-gray-500">KK</span></h3>
                 </div>
-                <Users size={38} className="text-blue-500 opacity-20 absolute -bottom-2 -right-2 group-hover:scale-110 transition-transform duration-300" />
+                <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-full">
+                  <Users size={28} className="text-blue-500" />
+                </div>
               </div>
               <div className="mt-3 relative z-10">
                  <div className="flex justify-between text-[10px] font-bold mb-1.5 uppercase tracking-wide">
@@ -454,26 +462,40 @@
               </div>
             </div>
             
-            <div className={`${theme.main} text-white p-6 rounded-xl shadow-lg flex items-center justify-between relative overflow-hidden group`}>
-              <div>
-                <p className="opacity-80 text-sm font-medium">Total Kas Jimpitan</p>
-                <h3 className="text-3xl font-bold mt-1">Rp {totalJimpitan.toLocaleString('id-ID')}</h3>
+            <div className={`${ui.card} p-5 rounded-xl flex flex-col justify-center hover:shadow-md transition-shadow relative overflow-hidden group border-l-4 border-l-emerald-500`}>
+              <div className="flex justify-between items-start">
+                <div className="relative z-10">
+                  <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Kas Jimpitan</p>
+                  <h3 className="text-3xl font-bold mt-1 text-gray-800 dark:text-white">Rp {totalJimpitan.toLocaleString('id-ID')}</h3>
+                </div>
+                <div className="bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded-full">
+                  <ShieldCheck size={28} className="text-emerald-500" />
+                </div>
               </div>
-              <ShieldCheck size={40} className="opacity-80" />
             </div>
-            <div className={`${ui.card} p-6 rounded-xl flex items-center justify-between`}>
-              <div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Tunggakan Denda</p>
-                <h3 className="text-3xl font-bold text-red-500">Rp {totalDenda.toLocaleString('id-ID')}</h3>
+
+            <div className={`${ui.card} p-5 rounded-xl flex flex-col justify-center hover:shadow-md transition-shadow relative overflow-hidden group border-l-4 border-l-red-500`}>
+              <div className="flex justify-between items-start">
+                <div className="relative z-10">
+                  <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Tunggakan Denda</p>
+                  <h3 className="text-3xl font-bold mt-1 text-gray-800 dark:text-white">Rp {totalDenda.toLocaleString('id-ID')}</h3>
+                </div>
+                <div className="bg-red-50 dark:bg-red-900/30 p-3 rounded-full">
+                  <AlertCircle size={28} className="text-red-500" />
+                </div>
               </div>
-              <AlertCircle size={40} className="text-red-500 opacity-80" />
             </div>
-            <div className={`${ui.card} p-6 rounded-xl flex items-center justify-between`}>
-              <div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">{isAdmin || isPublicView ? 'Jadwal Ronda Aktif' : 'Regu Saya'}</p>
-                <h3 className="text-3xl font-bold">{isAdmin || isPublicView ? activeJadwal.length : myJadwalIds.length} Regu</h3>
+
+            <div className={`${ui.card} p-5 rounded-xl flex flex-col justify-center hover:shadow-md transition-shadow relative overflow-hidden group border-l-4 border-l-orange-500`}>
+              <div className="flex justify-between items-start">
+                <div className="relative z-10">
+                  <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">{isAdmin || isPublicView ? 'Jadwal Ronda Aktif' : 'Regu Saya'}</p>
+                  <h3 className="text-3xl font-bold mt-1 text-gray-800 dark:text-white">{isAdmin || isPublicView ? activeJadwal.length : myJadwalIds.length} <span className="text-sm font-normal text-gray-500">Regu</span></h3>
+                </div>
+                <div className="bg-orange-50 dark:bg-orange-900/30 p-3 rounded-full">
+                  <CalendarDays size={28} className="text-orange-500" />
+                </div>
               </div>
-              <CalendarDays size={40} className="text-orange-500 opacity-80" />
             </div>
           </div>
 
@@ -1759,7 +1781,7 @@
               ...w,
               totalJimpitan: txJimpitan.reduce((sum, t) => sum + (t ? Number(t.nominal) || 0 : 0), 0),
               hadir: txAbsen.filter(t => t.status === 'Hadir').length,
-              alpa: alpaCount,
+              alpa: alpaBelumLunas,
               denda: alpaBelumLunas * (settings.nominalDenda || 0),
             };
           });
