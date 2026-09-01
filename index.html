@@ -225,6 +225,7 @@
 
     const Menu = (p) => <LucideIcon name="menu" {...p} />;
     const X = (p) => <LucideIcon name="x" {...p} />;
+    const XCircle = (p) => <LucideIcon name="x-circle" {...p} />;
     const Users = (p) => <LucideIcon name="users" {...p} />;
     const CalendarDays = (p) => <LucideIcon name="calendar-days" {...p} />;
     const QrCode = (p) => <LucideIcon name="qr-code" {...p} />;
@@ -423,11 +424,37 @@
 
       const grandTotalDendaDashboard = rekapWarga.reduce((sum, r) => sum + r.denda, 0);
       const grandTotalJimpitanDashboard = rekapWarga.reduce((sum, r) => sum + r.totalJimpitan, 0);
+      
+      const totalWarga = ctx.warga.length;
+      const wargaAktif = ctx.warga.filter(w => w.statusJimpitan !== 'Nonaktif').length;
+      const wargaNonAktif = totalWarga - wargaAktif;
+      const pAktif = totalWarga > 0 ? (wargaAktif / totalWarga) * 100 : 0;
+      const pNonAktif = totalWarga > 0 ? (wargaNonAktif / totalWarga) * 100 : 0;
 
       return (
         <div className="space-y-6 animate-fade-in print-content">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className={`${theme.main} text-white p-6 rounded-xl shadow-lg flex items-center justify-between`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className={`${ui.card} p-5 rounded-xl flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group`}>
+              <div className="flex justify-between items-start mb-2">
+                <div className="relative z-10">
+                  <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Warga</p>
+                  <h3 className="text-3xl font-bold mt-1 text-gray-800 dark:text-white">{totalWarga} <span className="text-sm font-normal text-gray-500">KK</span></h3>
+                </div>
+                <Users size={38} className="text-blue-500 opacity-20 absolute -bottom-2 -right-2 group-hover:scale-110 transition-transform duration-300" />
+              </div>
+              <div className="mt-3 relative z-10">
+                 <div className="flex justify-between text-[10px] font-bold mb-1.5 uppercase tracking-wide">
+                   <span className="text-blue-600 flex items-center gap-1"><CheckCircle size={10}/> {wargaAktif} Aktif</span>
+                   <span className="text-gray-500 flex items-center gap-1"><XCircle size={10}/> {wargaNonAktif} Nonaktif</span>
+                 </div>
+                 <div className="w-full h-2 flex rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 shadow-inner">
+                   <div style={{ width: `${pAktif}%` }} className="bg-blue-500 transition-all duration-1000 ease-out" title={`${wargaAktif} Aktif`}></div>
+                   <div style={{ width: `${pNonAktif}%` }} className="bg-gray-400 dark:bg-gray-500 transition-all duration-1000 ease-out" title={`${wargaNonAktif} Nonaktif`}></div>
+                 </div>
+              </div>
+            </div>
+            
+            <div className={`${theme.main} text-white p-6 rounded-xl shadow-lg flex items-center justify-between relative overflow-hidden group`}>
               <div>
                 <p className="opacity-80 text-sm font-medium">Total Kas Jimpitan</p>
                 <h3 className="text-3xl font-bold mt-1">Rp {totalJimpitan.toLocaleString('id-ID')}</h3>
@@ -1821,7 +1848,9 @@
         const existingManualJimpitan = jimpitan.find(j => j && j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === 'KAS-UMUM');
         setManualJimpitanEdit(existingManualJimpitan ? existingManualJimpitan.nominal : '');
 
-        const formData = warga.map(w => {
+        const formData = warga
+          .filter(w => w.statusJimpitan !== 'Nonaktif')
+          .map(w => {
            const existingJimpitan = jimpitan.find(j => j && j.tanggal === tanggal && j.jadwalId === jadwalId && j.wargaId === w.id);
            const existingAbsen = absensi.find(a => a && a.tanggal === tanggal && a.jadwalId === jadwalId && a.wargaId === w.id);
            const isMember = reguMembers.includes(w.id);
