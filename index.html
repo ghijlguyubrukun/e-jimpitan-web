@@ -1449,45 +1449,6 @@
       const [isCameraActive, setIsCameraActive] = useState(false);
       const scannerRef = useRef(null);
 
-      // Antrian Multi-User
-      const [pendingScans, setPendingScans] = useState(() => {
-        try { return JSON.parse(localStorage.getItem('pendingJimpitanScans')) || []; } catch(e) { return []; }
-      });
-      const [isSyncingQueue, setIsSyncingQueue] = useState(false);
-
-      useEffect(() => {
-        localStorage.setItem('pendingJimpitanScans', JSON.stringify(pendingScans));
-      }, [pendingScans]);
-
-      const syncQueueToServer = async () => {
-        if (pendingScans.length === 0 || isSyncingQueue) return;
-        setIsSyncingQueue(true);
-        showToast("Sinkronisasi Multi-User berjalan...");
-        try {
-           const response = await fetch('https://script.google.com/macros/s/AKfycbxM33tM3kBw_Z6dl2kRc5Mv70OIZ8XPothhTGCO_kgl1lDJaB1cmUzD3TSqSt_YVA1G/exec');
-           const serverData = await response.json();
-           if (serverData && serverData.jimpitan) {
-              const currentPending = [...pendingScans];
-              const syncedIds = new Set(currentPending.map(s => s.id));
-              const serverClean = serverData.jimpitan.filter(s => !syncedIds.has(s.id));
-              const merged = [...currentPending, ...serverClean];
-              
-              const success = await window.simpanDataKeSpreadsheet("jimpitan", merged);
-              if (success) {
-                 setJimpitan(merged);
-                 setPendingScans(prev => prev.filter(s => !syncedIds.has(s.id)));
-                 showToast(`Berhasil sinkronisasi ${currentPending.length} data scan ke server!`);
-              } else {
-                 showToast("Gagal menyimpan ke server, akan coba lagi nanti.");
-              }
-           }
-        } catch (e) {
-           showToast("Gagal mengambil data terbaru dari server.");
-        } finally {
-           setIsSyncingQueue(false);
-        }
-      };
-
       const checkAlreadyPaid = (wId) => {
         return jimpitan.some(j => j && j.tanggal === inputDate && (j.jadwalId === selectedJadwalId || (!selectedJadwalId && j.jadwalId === 'Tanpa Regu')) && j.wargaId === wId);
       }
@@ -1588,16 +1549,16 @@
         const updatedJimpitan = [newEntry, ...jimpitan];
         
         setJimpitan(updatedJimpitan);
-        setPendingScans(prev => [newEntry, ...prev]);
         setScannedWarga(null); 
         setManualId(''); 
         
-        showToast(`Setoran Rp ${Number(nom).toLocaleString('id-ID')} dicatat ke antrian!`);
-        
-        // Background sync
-        setTimeout(() => {
-           syncQueueToServer();
-        }, 500);
+        showToast(`Menyimpan setoran Rp ${Number(nom).toLocaleString('id-ID')}...`);
+        const success = await syncData("jimpitan", updatedJimpitan);
+        if (success) {
+           showToast(`Berhasil menyimpan setoran Rp ${Number(nom).toLocaleString('id-ID')}!`);
+        } else {
+           showToast(`Gagal menyimpan ke server, namun tersimpan di lokal.`);
+        }
       };
 
       return (
@@ -1605,12 +1566,6 @@
           <div className="text-center mb-6 relative">
             <h2 className="text-2xl font-bold">Input & Scan Jimpitan</h2>
             <p className="text-gray-500 text-sm mt-2">Pilih tanggal dan scan barcode di kotak jimpitan rumah warga.</p>
-            {pendingScans.length > 0 && (
-                <button onClick={syncQueueToServer} disabled={isSyncingQueue} className={`mt-4 mx-auto bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all ${isSyncingQueue ? 'opacity-70 cursor-wait' : 'animate-pulse'}`}>
-                   {isSyncingQueue ? <span className="animate-spin text-xl">⏳</span> : <span className="text-xl">🔄</span>}
-                   {isSyncingQueue ? 'Menyinkronkan...' : `Kirim ${pendingScans.length} Data Antrian`}
-                </button>
-            )}
           </div>
           
           <div className="mb-6 max-w-xs mx-auto">
