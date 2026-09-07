@@ -1,6 +1,6 @@
 {
   "name": "e-Jimpitan Warga",
-  "short_name": "Jimpitan",
+  "short_name": "e-Jimpitan",
   "description": "Sistem Informasi Manajemen Jimpitan dan Ronda Warga",
   "start_url": "./index.html",
   "display": "standalone",
