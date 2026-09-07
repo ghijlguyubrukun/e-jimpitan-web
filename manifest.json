@@ -4,7 +4,7 @@
   "description": "Sistem Informasi Manajemen Jimpitan dan Ronda Warga",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#111827",
+  "background_color": "#FFFFFF",
   "theme_color": "#059669",
   "icons": [
     {
