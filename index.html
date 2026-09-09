@@ -234,6 +234,7 @@
     const Camera = (p) => <LucideIcon name="camera" {...p} />;
     const Plus = (p) => <LucideIcon name="plus" {...p} />;
     const Trash2 = (p) => <LucideIcon name="trash-2" {...p} />;
+    const Award = (p) => <LucideIcon name="award" {...p} />;
     const CheckCircle = (p) => <LucideIcon name="check-circle" {...p} />;
     const AlertCircle = (p) => <LucideIcon name="alert-circle" {...p} />;
     const Settings = (p) => <LucideIcon name="settings" {...p} />;
@@ -336,7 +337,7 @@
       };
 
     const Dashboard = ({ ctx }) => {
-      const { jadwal, absensi, jimpitan, settings, currentUser, isPublicView, isAdmin, theme, ui, getWargaName } = ctx;
+      const { jadwal, absensi, jimpitan, settings, currentUser, isPublicView, isAdmin, theme, ui, getWargaName, getJuaraReguIds } = ctx;
       const [searchQuery, setSearchQuery] = useState('');
       
       const activePeriod = useMemo(() => {
@@ -348,6 +349,8 @@
       const activeJadwal = useMemo(() => {
         return jadwal.filter(j => j && (!activePeriod || j.periode === activePeriod));
       }, [jadwal, activePeriod]);
+
+      const juaraIds = useMemo(() => getJuaraReguIds(activeJadwal), [activeJadwal, absensi]);
 
       const myJadwalIds = isAdmin || isPublicView 
         ? activeJadwal.map(j => j.id) 
@@ -593,7 +596,14 @@
                       <div className="p-3 sm:p-5">
                         <div className="flex justify-between items-start mb-3 sm:mb-5">
                           <div>
-                            <h4 className="text-sm sm:text-lg font-black text-gray-800 dark:text-gray-100">Ronda Hari {j.hari}</h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm sm:text-lg font-black text-gray-800 dark:text-gray-100">Ronda Hari {j.hari}</h4>
+                              {juaraIds.includes(j.id) && (
+                                <span className="bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm border border-yellow-200 dark:border-yellow-700/50" title="Regu Paling Aktif">
+                                  <Award size={12} /> Juara
+                                </span>
+                              )}
+                            </div>
                             <span className="inline-block mt-1 text-[8px] sm:text-[10px] font-bold tracking-wider uppercase bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 sm:px-2 py-0.5 rounded">
                               Periode: {j.periode}
                             </span>
@@ -953,7 +963,7 @@
     };
 
     const JadwalDanAbsen = ({ ctx }) => {
-      const { isAdmin, jadwal, setJadwal, absensi, setAbsensi, jimpitan, setJimpitan, currentUser, getWargaName, syncData, showToast, requestConfirm, theme, ui, settings, setSettings } = ctx;
+      const { isAdmin, jadwal, setJadwal, absensi, setAbsensi, jimpitan, setJimpitan, currentUser, getWargaName, syncData, showToast, requestConfirm, theme, ui, settings, setSettings, getJuaraReguIds } = ctx;
       const [subTab, setSubTab] = useState('input_absen'); 
       const [selectedJadwalId, setSelectedJadwalId] = useState('');
       const [absenData, setAbsenData] = useState({}); 
@@ -1002,6 +1012,8 @@
         if (isAdmin) return filterPeriodeJadwal === 'Semua' || j.periode === filterPeriodeJadwal;
         return !activePeriod || j.periode === activePeriod;
       });
+
+      const juaraIds = useMemo(() => getJuaraReguIds(displayedSchedules), [displayedSchedules, absensi]);
 
       useEffect(() => {
         if (selectedJadwalId) {
@@ -1398,8 +1410,15 @@
                     <div>
                       <div className="flex justify-between items-start mb-4">
                         <div>
-                          <h3 className="text-xl font-bold mb-1">Hari {j.hari}</h3>
-                          <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">Periode: {j.periode}</span>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-xl font-bold">Hari {j.hari}</h3>
+                            {juaraIds.includes(j.id) && (
+                              <span className="bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1 shadow-sm border border-yellow-200 dark:border-yellow-700/50" title="Regu Paling Aktif">
+                                <Award size={14} /> Juara
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded inline-block mt-1">Periode: {j.periode}</span>
                         </div>
                         {isAdmin && (
                           <button onClick={() => handleDeleteJadwal(j.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={18} /></button>
@@ -3082,10 +3101,33 @@
 
       const menuItems = allMenuItems.filter(m => m.roles.includes(userRole));
 
+      const getJuaraReguIds = (jadwalList) => {
+        let scores = [];
+        jadwalList.forEach(j => {
+          if (!j) return;
+          const txAbsen = absensi.filter(a => a && a.jadwalId === j.id);
+          const totalAbsen = txAbsen.length;
+          if (totalAbsen > 0) {
+            const hadir = txAbsen.filter(a => a.status === 'Hadir').length;
+            const pelanggaran = txAbsen.filter(a => ['Alpa', 'Izin', 'Sakit'].includes(a.status)).length;
+            const ratio = hadir / totalAbsen;
+            scores.push({ id: j.id, ratio, totalAbsen, pelanggaran, hadir });
+          }
+        });
+        if (scores.length === 0) return [];
+        scores.sort((a, b) => b.ratio - a.ratio || a.pelanggaran - b.pelanggaran || b.hadir - a.hadir);
+        
+        const highestRatio = scores[0].ratio;
+        if (highestRatio === 0) return [];
+        
+        const topScores = scores.filter(s => s.ratio === highestRatio && s.pelanggaran === scores[0].pelanggaran && s.hadir === scores[0].hadir);
+        return topScores.map(s => s.id);
+      };
+
       const ctx = {
         warga, setWarga, jadwal, setJadwal, absensi, setAbsensi, jimpitan, setJimpitan, accounts, setAccounts, 
         settings, setSettings, currentUser, setCurrentUser, isPublicView, setIsPublicView, activeTab, setActiveTab, 
-        isDarkMode, setIsDarkMode, themeColor, setThemeColor, showToast, requestConfirm, syncData, theme, ui, getWargaName, userRole, 
+        isDarkMode, setIsDarkMode, themeColor, setThemeColor, showToast, requestConfirm, syncData, theme, ui, getWargaName, getJuaraReguIds, userRole, 
         isAdmin
       };
 
