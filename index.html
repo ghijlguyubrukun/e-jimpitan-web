@@ -274,9 +274,13 @@
     ];
 
     const colorPalettes = {
-      blue: { main: 'bg-blue-600', text: 'text-blue-600', hover: 'hover:bg-blue-700', light: 'bg-blue-50', border: 'border-blue-200', bar: '#3B82F6' },
-      emerald: { main: 'bg-emerald-600', text: 'text-emerald-600', hover: 'hover:bg-emerald-700', light: 'bg-emerald-50', border: 'border-emerald-200', bar: '#10B981' },
-      violet: { main: 'bg-violet-600', text: 'text-violet-600', hover: 'hover:bg-violet-700', light: 'bg-violet-50', border: 'border-violet-200', bar: '#8B5CF6' },
+      blue: { main: 'bg-blue-600', text: 'text-blue-600', hover: 'hover:bg-blue-700', light: 'bg-blue-50', border: 'border-blue-200', bar: '#2563EB' },
+      cyan: { main: 'bg-cyan-600', text: 'text-cyan-600', hover: 'hover:bg-cyan-700', light: 'bg-cyan-50', border: 'border-cyan-200', bar: '#0891B2' },
+      emerald: { main: 'bg-emerald-600', text: 'text-emerald-600', hover: 'hover:bg-emerald-700', light: 'bg-emerald-50', border: 'border-emerald-200', bar: '#059669' },
+      violet: { main: 'bg-violet-600', text: 'text-violet-600', hover: 'hover:bg-violet-700', light: 'bg-violet-50', border: 'border-violet-200', bar: '#7C3AED' },
+      rose: { main: 'bg-rose-600', text: 'text-rose-600', hover: 'hover:bg-rose-700', light: 'bg-rose-50', border: 'border-rose-200', bar: '#E11D48' },
+      orange: { main: 'bg-orange-600', text: 'text-orange-600', hover: 'hover:bg-orange-700', light: 'bg-orange-50', border: 'border-orange-200', bar: '#EA580C' },
+      slate: { main: 'bg-slate-700', text: 'text-slate-700', hover: 'hover:bg-slate-800', light: 'bg-slate-100', border: 'border-slate-300', bar: '#334155' },
     };
 
     const LoginScreen = ({ ctx }) => {
@@ -2926,9 +2930,9 @@
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-3">Warna Aksen Aplikasi</label>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-4">
                   {Object.keys(colorPalettes).map(color => (
-                    <button key={color} onClick={() => setThemeColor(color)} className={`w-10 h-10 rounded-full border-4 transition-transform ${themeColor === color ? 'border-gray-300 dark:border-gray-500 scale-110 shadow-lg' : 'border-transparent hover:scale-105'}`} style={{ backgroundColor: color === 'blue' ? '#2563EB' : color === 'emerald' ? '#10B981' : '#7C3AED' }} />
+                    <button key={color} onClick={() => setThemeColor(color)} className={`w-10 h-10 rounded-full border-4 transition-transform ${themeColor === color ? 'border-gray-300 dark:border-gray-500 scale-110 shadow-lg' : 'border-transparent hover:scale-105'}`} style={{ backgroundColor: colorPalettes[color].bar }} title={color} />
                   ))}
                 </div>
               </div>
