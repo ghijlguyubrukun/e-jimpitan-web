@@ -302,11 +302,11 @@
           <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
               <div className="text-center mb-8">
-                <div className="bg-white p-2 rounded-xl shadow-md flex items-center justify-center mx-auto w-24 h-24 mb-4">
+                <div className="flex items-center justify-center mx-auto h-28 mb-6">
                   {settings?.logoUrl ? (
-                    <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                    <img src={settings.logoUrl} alt="Logo" className="h-full w-auto object-contain filter drop-shadow-xl" />
                   ) : (
-                    <ShieldCheck size={48} className={theme?.text || 'text-blue-600'} />
+                    <ShieldCheck size={80} className={theme?.text || 'text-blue-600'} />
                   )}
                 </div>
                 <h1 className="text-2xl font-black">{settings?.webName || 'e-Jimpitan'}</h1>
@@ -2312,6 +2312,13 @@
          }
       }
 
+      const grandTotalDendaRekap = useMemo(() => {
+        return groupedAlpa.reduce((sum, g) => {
+          const unpaidCount = g.records.filter(r => !r.isLunas).length;
+          return sum + (unpaidCount * (settings.nominalDenda || 0));
+        }, 0);
+      }, [groupedAlpa, settings.nominalDenda]);
+
       return (
         <div className="space-y-6 animate-fade-in print-content">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 print-hide">
@@ -2371,6 +2378,16 @@
                     )
                   })}
                 </tbody>
+                <tfoot className="sticky bottom-0 z-10 shadow-[0_-2px_4px_rgba(0,0,0,0.05)]">
+                  <tr className="bg-gray-100 dark:bg-gray-800 border-t-2 border-gray-300 dark:border-gray-600 print:bg-gray-200">
+                    <td colSpan="3" className="p-4 text-right font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider print:border-black print:border print:text-black">
+                      Total Tunggakan Denda ({filterBulan} {filterTahun}):
+                    </td>
+                    <td className="p-4 text-right font-bold text-red-600 whitespace-nowrap print:border-black print:border print:text-black">
+                      Rp {grandTotalDendaRekap.toLocaleString('id-ID')}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -2632,7 +2649,7 @@
                     <div className="flex-1 min-h-[160px] border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-2 relative flex flex-col items-center justify-center group overflow-hidden bg-gray-50 dark:bg-gray-800 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
                       {settings.logoUrl ? (
                         <>
-                          <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain p-2 drop-shadow-sm" />
+                          <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain p-2 filter drop-shadow-md" />
                           <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <span className="text-white text-xs font-bold px-3 py-1 bg-black/50 rounded-full">Ganti Logo</span>
                           </div>
@@ -3102,18 +3119,34 @@
       const menuItems = allMenuItems.filter(m => m.roles.includes(userRole));
 
       const getJuaraReguIds = (jadwalList) => {
-        let scores = [];
-        jadwalList.forEach(j => {
-          if (!j) return;
-          const txAbsen = absensi.filter(a => a && a.jadwalId === j.id);
-          const totalAbsen = txAbsen.length;
-          if (totalAbsen > 0) {
-            const hadir = txAbsen.filter(a => a.status === 'Hadir').length;
-            const pelanggaran = txAbsen.filter(a => ['Alpa', 'Izin', 'Sakit'].includes(a.status)).length;
-            const ratio = hadir / totalAbsen;
-            scores.push({ id: j.id, ratio, totalAbsen, pelanggaran, hadir });
+        if (!jadwalList || jadwalList.length === 0 || !absensi || absensi.length === 0) return [];
+        
+        const statsByJadwal = {};
+        for (let i = 0; i < absensi.length; i++) {
+          const a = absensi[i];
+          if (!a || !a.jadwalId) continue;
+          if (!statsByJadwal[a.jadwalId]) {
+            statsByJadwal[a.jadwalId] = { total: 0, hadir: 0, pelanggaran: 0 };
           }
-        });
+          statsByJadwal[a.jadwalId].total++;
+          if (a.status === 'Hadir') {
+            statsByJadwal[a.jadwalId].hadir++;
+          } else if (a.status === 'Alpa' || a.status === 'Izin' || a.status === 'Sakit') {
+            statsByJadwal[a.jadwalId].pelanggaran++;
+          }
+        }
+        
+        let scores = [];
+        for (let i = 0; i < jadwalList.length; i++) {
+          const j = jadwalList[i];
+          if (!j || !statsByJadwal[j.id]) continue;
+          const stats = statsByJadwal[j.id];
+          if (stats.total > 0) {
+             const ratio = stats.hadir / stats.total;
+             scores.push({ id: j.id, ratio, totalAbsen: stats.total, pelanggaran: stats.pelanggaran, hadir: stats.hadir });
+          }
+        }
+        
         if (scores.length === 0) return [];
         scores.sort((a, b) => b.ratio - a.ratio || a.pelanggaran - b.pelanggaran || b.hadir - a.hadir);
         
@@ -3176,11 +3209,11 @@
               <div className="max-w-7xl mx-auto px-4">
                 <div className="flex justify-between items-center py-3 min-h-[80px]">
                   <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="bg-white p-1.5 sm:p-2 rounded-xl shadow-md flex items-center justify-center shrink-0">
+                    <div className="flex items-center justify-center shrink-0">
                       {settings.logoUrl ? (
-                         <img src={settings.logoUrl} alt="Logo" className="h-10 sm:h-12 w-auto max-w-[80px] sm:max-w-[120px] object-contain" />
+                         <img src={settings.logoUrl} alt="Logo" className="h-12 sm:h-16 w-auto object-contain filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] transition-transform duration-300 hover:scale-105" />
                       ) : (
-                         <ShieldCheck size={32} className={theme.text} />
+                         <ShieldCheck size={40} className="text-white filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
                       )}
                     </div>
                     <div className="flex flex-col justify-center min-w-0 max-w-[200px] sm:max-w-md">
@@ -3251,11 +3284,11 @@
             md:flex-shrink-0`}>
             
             <div className={`p-5 border-b flex items-center gap-3 ${theme.main} text-white`}>
-              <div className="bg-white p-1.5 rounded-xl shadow-md flex items-center justify-center shrink-0">
+              <div className="flex items-center justify-center shrink-0 pl-1">
                 {settings.logoUrl ? (
-                   <img src={settings.logoUrl} alt="Logo" className="h-8 sm:h-10 w-auto max-w-[60px] object-contain" />
+                   <img src={settings.logoUrl} alt="Logo" className="h-10 sm:h-14 w-auto object-contain filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
                 ) : (
-                   <ShieldCheck size={28} className={theme.text} />
+                   <ShieldCheck size={36} className="text-white filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
                 )}
               </div>
               <div className="flex flex-col justify-center min-w-0 pr-2">
