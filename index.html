@@ -31,52 +31,57 @@
     // URL WEB APP BARU SUDAH DISISIPKAN DI SINI
     const scriptURL = 'https://script.google.com/macros/s/AKfycbxM33tM3kBw_Z6dl2kRc5Mv70OIZ8XPothhTGCO_kgl1lDJaB1cmUzD3TSqSt_YVA1G/exec';
 
-    window.simpanDataKeSpreadsheet = async function(kunciData, dataArrayBaru) {
-      try {
-        let cleanedData = Array.isArray(dataArrayBaru)
-          ? dataArrayBaru.filter(Boolean).map(item => {
-              if (item && typeof item === 'object') {
-                const { foto, ...rest } = item; 
-                return rest;
+    window.simpanDataKeSpreadsheet = async function(kunciData, dataArrayBaru, action = 'replace', retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          let cleanedData = Array.isArray(dataArrayBaru)
+            ? dataArrayBaru.filter(Boolean).map(item => {
+                if (item && typeof item === 'object') {
+                  const { foto, ...rest } = item; 
+                  return rest;
+                }
+                return item;
+              })
+            : dataArrayBaru;
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000); 
+
+          const response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8' 
+            },
+            body: JSON.stringify({ action: action, key: kunciData, data: cleanedData }),
+            redirect: 'follow', 
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+             throw new Error(`HTTP Error Status: ${response.status}`);
+          } else {
+            const text = await response.text();
+            try {
+              const hasil = JSON.parse(text);
+              if (hasil.status === 'success') return true;
+              throw new Error("Gagal dari GAS");
+            } catch(e) {
+              if (text.toLowerCase().includes("<!doctype html>") || text.toLowerCase().includes("<html")) {
+                 console.warn("Menerima HTML dari GAS, tapi status 200 OK. Dianggap sukses.");
+                 return true;
               }
-              return item;
-            })
-          : dataArrayBaru;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); 
-
-        const response = await fetch(scriptURL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8' 
-          },
-          body: JSON.stringify({ key: kunciData, data: cleanedData }),
-          redirect: 'follow', 
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-           throw new Error(`HTTP Error Status: ${response.status}`);
-        } else {
-          const text = await response.text();
-          try {
-            const hasil = JSON.parse(text);
-            return hasil.status === 'success'; 
-          } catch(e) {
-            if (text.toLowerCase().includes("<!doctype html>") || text.toLowerCase().includes("<html")) {
-               console.warn("Menerima HTML dari GAS, tapi status 200 OK. Dianggap sukses.");
-               return true;
+              throw new Error("Respon bukan JSON valid.");
             }
-            return false;
           }
+        } catch (error) {
+          console.warn(`Gagal POST data [${kunciData}] (Percobaan ${i + 1}):`, error.message);
+          if (i === retries - 1) return false;
+          await new Promise(res => setTimeout(res, 2000 * (i + 1))); // Exponential backoff delay
         }
-      } catch (error) {
-        console.error(`Gagal POST data [${kunciData}]:`, error.message);
-        return false;
       }
+      return false;
     };
 
     window.ambilDataDariSpreadsheet = async function(retries = 2) {
@@ -1054,16 +1059,17 @@
           keterangan: absenData[wId].keterangan
         }));
         
-        const filteredAbsensi = absensi.filter(a => a && !(a.tanggal === inputDate && a.jadwalId === selectedJadwalId));
-        const updatedAbsensi = [...newEntries, ...filteredAbsensi];
+        const filteredAbsensiOptimistic = absensi.filter(a => a && !(a.tanggal === inputDate && a.jadwalId === selectedJadwalId));
+        const updatedAbsensiOptimistic = [...newEntries, ...filteredAbsensiOptimistic];
         
-        setAbsensi(updatedAbsensi);
+        setAbsensi(updatedAbsensiOptimistic);
         
         const hasManualJimpitan = totalJimpitanManual && Number(totalJimpitanManual) >= 0 && isAdmin;
-        let updatedJimpitan = jimpitan;
+        let updatedJimpitanOptimistic = jimpitan;
+        let newJimpitanManual = null;
         
         if (hasManualJimpitan) {
-            const newJimpitanManual = {
+            newJimpitanManual = {
                 id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
                 tanggal: inputDate,
                 bulan: monthStr,
@@ -1072,19 +1078,40 @@
                 wargaId: 'KAS-UMUM',
                 nominal: Number(totalJimpitanManual)
             };
-            const filteredJimpitan = jimpitan.filter(j => j && !(j.tanggal === inputDate && j.jadwalId === selectedJadwalId && j.wargaId === 'KAS-UMUM'));
-            updatedJimpitan = [newJimpitanManual, ...filteredJimpitan];
-            setJimpitan(updatedJimpitan);
+            const filteredJimpitanOptimistic = jimpitan.filter(j => j && !(j.tanggal === inputDate && j.jadwalId === selectedJadwalId && j.wargaId === 'KAS-UMUM'));
+            updatedJimpitanOptimistic = [newJimpitanManual, ...filteredJimpitanOptimistic];
+            setJimpitan(updatedJimpitanOptimistic);
         }
 
         setSelectedJadwalId('');
         setTotalJimpitanManual('');
+        
+        showToast('Menyimpan Rekam Data ke server...');
 
-        const successAbsen = await syncData("absensi", updatedAbsensi);
+        const latestDb = await window.ambilDataDariSpreadsheet(1);
+        let serverAbsensi = absensi;
+        let serverJimpitan = jimpitan;
+        if (latestDb) {
+            if (latestDb.absensi) serverAbsensi = latestDb.absensi;
+            if (latestDb.jimpitan) serverJimpitan = latestDb.jimpitan;
+        }
+
+        const filteredServerAbsensi = serverAbsensi.filter(a => a && !(a.tanggal === inputDate && a.jadwalId === selectedJadwalId));
+        const mergedAbsensi = [...newEntries, ...filteredServerAbsensi];
+        setAbsensi(mergedAbsensi);
+
+        let mergedJimpitan = serverJimpitan;
+        if (hasManualJimpitan && newJimpitanManual) {
+            const filteredServerJimpitan = serverJimpitan.filter(j => j && !(j.tanggal === inputDate && j.jadwalId === selectedJadwalId && j.wargaId === 'KAS-UMUM'));
+            mergedJimpitan = [newJimpitanManual, ...filteredServerJimpitan];
+            setJimpitan(mergedJimpitan);
+        }
+
+        const successAbsen = await syncData("absensi", mergedAbsensi);
         let successJimpitan = true;
         
         if (hasManualJimpitan) {
-            successJimpitan = await syncData("jimpitan", updatedJimpitan);
+            successJimpitan = await syncData("jimpitan", mergedJimpitan);
         }
         
         if (successAbsen && successJimpitan) {
@@ -1618,14 +1645,16 @@
           wargaId: scannedWarga.id, 
           nominal: Number(nom) 
         };
-        const updatedJimpitan = [newEntry, ...jimpitan];
+        const updatedJimpitanOptimistic = [newEntry, ...jimpitan];
         
-        setJimpitan(updatedJimpitan);
+        setJimpitan(updatedJimpitanOptimistic);
         setScannedWarga(null); 
         setManualId(''); 
         
         showToast(`Menyimpan setoran Rp ${Number(nom).toLocaleString('id-ID')}...`);
-        const success = await syncData("jimpitan", updatedJimpitan);
+
+        // Gunakan mode "append" yang sangat cepat dan anti bentrok
+        const success = await syncData("jimpitan", [newEntry], 'append');
         if (success) {
            showToast(`Berhasil menyimpan setoran Rp ${Number(nom).toLocaleString('id-ID')}!`);
         } else {
@@ -3073,8 +3102,8 @@
         muatData();
       }, []);
 
-      const syncData = async (key, dataArray) => {
-         return await window.simpanDataKeSpreadsheet(key, dataArray);
+      const syncData = async (key, dataArray, action = 'replace') => {
+         return await window.simpanDataKeSpreadsheet(key, dataArray, action);
       };
 
       const showToast = (msg) => {
@@ -3213,11 +3242,11 @@
               <div className="max-w-7xl mx-auto px-4">
                 <div className="flex justify-between items-center py-3 min-h-[80px]">
                   <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="flex items-center justify-center shrink-0">
+                    <div className="flex items-center justify-center shrink-0 bg-white rounded-xl p-1.5 sm:p-2 shadow-md">
                       {settings.logoUrl ? (
-                         <img src={settings.logoUrl} alt="Logo" className="h-12 sm:h-16 w-auto object-contain filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)] transition-transform duration-300 hover:scale-105" />
+                         <img src={settings.logoUrl} alt="Logo" className="h-9 sm:h-12 w-auto object-contain transition-transform duration-300 hover:scale-105" />
                       ) : (
-                         <ShieldCheck size={40} className="text-white filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
+                         <ShieldCheck size={36} className="text-blue-600" />
                       )}
                     </div>
                     <div className="flex flex-col justify-center min-w-0 max-w-[200px] sm:max-w-md">
@@ -3288,11 +3317,11 @@
             md:flex-shrink-0`}>
             
             <div className={`p-5 border-b flex items-center gap-3 ${theme.main} text-white`}>
-              <div className="flex items-center justify-center shrink-0 pl-1">
+              <div className="flex items-center justify-center shrink-0 bg-white rounded-xl p-1.5 sm:p-2 shadow-md">
                 {settings.logoUrl ? (
-                   <img src={settings.logoUrl} alt="Logo" className="h-10 sm:h-14 w-auto object-contain filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
+                   <img src={settings.logoUrl} alt="Logo" className="h-8 sm:h-10 w-auto object-contain" />
                 ) : (
-                   <ShieldCheck size={36} className="text-white filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" />
+                   <ShieldCheck size={32} className="text-blue-600" />
                 )}
               </div>
               <div className="flex flex-col justify-center min-w-0 pr-2">
