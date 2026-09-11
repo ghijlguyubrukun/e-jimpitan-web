@@ -98,7 +98,10 @@
           const text = await response.text(); 
           try {
             const hasil = JSON.parse(text);
-            if (hasil.status === 'success') return hasil.data;
+            if (hasil.status === 'success') {
+              try { localStorage.setItem('eJimpitanCache', JSON.stringify(hasil.data)); } catch(err) {}
+              return hasil.data;
+            }
             return null; 
           } catch(e) {
             throw new Error("Respon bukan JSON valid.");
@@ -3044,13 +3047,18 @@
       }, [themeColor]);
 
       useEffect(() => {
-        const muatData = async () => {
-          setIsLoadingDB(true);
-          setDbError(false);
-          try {
-            const dbData = await window.ambilDataDariSpreadsheet();
-            
+        const applyDataToState = (dbData) => {
             if (dbData && typeof dbData === 'object' && Object.keys(dbData).length > 0) {
+              const rawSettings = dbData.settings || {};
+              setSettings({
+                webName: rawSettings.webName || 'e-Jimpitan GHIJL',
+                tagline: rawSettings.tagline || 'Dari Warga, Oleh Warga, Untuk Warga',
+                logoUrl: rawSettings.logoUrl || null,
+                nominalJimpitan: Number(rawSettings.nominalJimpitan) || 2000,
+                nominalDenda: Number(rawSettings.nominalDenda) || 10000,
+                activePeriode: rawSettings.activePeriode || ''
+              });
+
               const rawWarga = dbData.warga && dbData.warga.length > 0 ? dbData.warga : initialWarga;
               const cleanWarga = rawWarga.map(w => {
                  if (w && typeof w === 'object') {
@@ -3078,22 +3086,35 @@
               setJimpitan(dbData.jimpitan && dbData.jimpitan.length > 0 ? dbData.jimpitan : initialJimpitan);
               const loadedAccounts = dbData.accounts && dbData.accounts.length > 0 ? dbData.accounts : initialAccounts;
               setAccounts(loadedAccounts.map(a => a.role === 'Koordinator' ? { ...a, role: 'Koordinator Ronda' } : a));
-              
-              const rawSettings = dbData.settings || {};
-              setSettings({
-                webName: rawSettings.webName || 'e-Jimpitan GHIJL',
-                tagline: rawSettings.tagline || 'Dari Warga, Oleh Warga, Untuk Warga',
-                logoUrl: rawSettings.logoUrl || null,
-                nominalJimpitan: Number(rawSettings.nominalJimpitan) || 2000,
-                nominalDenda: Number(rawSettings.nominalDenda) || 10000,
-                activePeriode: rawSettings.activePeriode || ''
-              });
             } else {
               setWarga(initialWarga); setJadwal(initialJadwal); setAbsensi(initialAbsensi); setJimpitan(initialJimpitan); setAccounts(initialAccounts);
             }
+        };
+
+        const muatData = async () => {
+          let hasCache = false;
+          try {
+            const cachedText = localStorage.getItem('eJimpitanCache');
+            if (cachedText) {
+               const cachedData = JSON.parse(cachedText);
+               applyDataToState(cachedData);
+               hasCache = true;
+               setIsLoadingDB(false); // remove loading screen immediately
+            }
+          } catch(e) {}
+
+          if (!hasCache) {
+             setIsLoadingDB(true);
+          }
+          setDbError(false);
+          try {
+            const dbData = await window.ambilDataDariSpreadsheet();
+            applyDataToState(dbData);
           } catch (err) {
             setDbError(true);
-            setWarga(initialWarga); setJadwal(initialJadwal); setAbsensi(initialAbsensi); setJimpitan(initialJimpitan); setAccounts(initialAccounts);
+            if (!hasCache) {
+               setWarga(initialWarga); setJadwal(initialJadwal); setAbsensi(initialAbsensi); setJimpitan(initialJimpitan); setAccounts(initialAccounts);
+            }
           } finally {
             setIsLoadingDB(false);
           }
