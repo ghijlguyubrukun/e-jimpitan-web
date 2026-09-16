@@ -400,9 +400,21 @@
 
       const maxJimpitan = jimpitanChartData.length > 0 ? Math.max(...jimpitanChartData.map(d => d.total)) : 1;
 
+      const absenPeriods = useMemo(() => ['Semua Periode', ...new Set(jadwal.map(x => x && x.periode).filter(Boolean))], [jadwal]);
+      const [absenPeriod, setAbsenPeriod] = useState(activePeriod || 'Semua Periode');
+      
+      const chartAbsensi = useMemo(() => {
+         let filtered = filteredAbsensi;
+         if (absenPeriod !== 'Semua Periode') {
+            const jadwalIdsInPeriod = jadwal.filter(j => j && j.periode === absenPeriod).map(j => j.id);
+            filtered = filtered.filter(a => a && jadwalIdsInPeriod.includes(a.jadwalId));
+         }
+         return filtered;
+      }, [filteredAbsensi, absenPeriod, jadwal]);
+
       const absenStats = useMemo(() => {
         const stats = { Hadir: 0, Sakit: 0, Izin: 0, Kerja: 0, Alpa: 0, 'Alpa (Lunas)': 0 };
-        filteredAbsensi.forEach(a => { 
+        chartAbsensi.forEach(a => { 
           if (a && a.status === 'Alpa' && a.isLunas) {
             stats['Alpa (Lunas)']++;
           } else if (a && stats[a.status] !== undefined) {
@@ -416,9 +428,30 @@
           value: stats[key],
           color: colors[key]
         })).filter(s => s.value > 0);
-      }, [filteredAbsensi]);
+      }, [chartAbsensi]);
 
       const totalAbsen = absenStats.reduce((sum, item) => sum + item.value, 0);
+
+      const reguAbsenStats = useMemo(() => {
+         if (absenPeriod === 'Semua Periode') return [];
+         const jadwalInPeriod = jadwal.filter(j => j && j.periode === absenPeriod && myJadwalIds.includes(j.id));
+         return jadwalInPeriod.map(j => {
+            const aList = chartAbsensi.filter(a => a.jadwalId === j.id);
+            const hadir = aList.filter(a => a.status === 'Hadir').length;
+            const alpa = aList.filter(a => a.status === 'Alpa').length;
+            const lain = aList.length - hadir - alpa;
+            const total = aList.length;
+            return {
+               id: j.id,
+               hari: j.hari,
+               hadir,
+               alpa,
+               lain,
+               total,
+               persentase: total > 0 ? Math.round((hadir / total) * 100) : 0
+            }
+         }).sort((a,b) => b.persentase - a.persentase);
+      }, [chartAbsensi, absenPeriod, jadwal, myJadwalIds]);
 
       // PERBAIKAN: Menambahkan Filter Khusus Bulan Berjalan pada Rekap Warga (Tabel Bawah)
       const currentMonthDisplay = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][new Date().getMonth()];
@@ -550,35 +583,61 @@
               </div>
             </div>
             
-            <div className={`${ui.card} p-6 rounded-xl flex flex-col`}>
-              <h3 className="text-lg font-semibold mb-2">Statistik Kehadiran {isAdmin || isPublicView ? 'Global' : 'Regu'}</h3>
-              <p className="text-xs text-gray-400 mb-6">Akumulasi status kehadiran anggota ronda</p>
+            <div className={`${ui.card} p-4 sm:p-6 rounded-xl flex flex-col max-h-[450px]`}>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Statistik Kehadiran {isAdmin || isPublicView ? 'Global' : 'Regu'}</h3>
+                  <p className="text-xs text-gray-400">Akumulasi status kehadiran anggota ronda</p>
+                </div>
+                <select className={`p-1.5 text-xs sm:text-sm border rounded-lg ${ui.input} font-semibold max-w-[120px] sm:max-w-[140px]`} value={absenPeriod} onChange={e => setAbsenPeriod(e.target.value)}>
+                  {absenPeriods.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
               
               {totalAbsen === 0 ? (
-                <div className="flex-1 flex items-center justify-center text-sm text-gray-400 italic">Belum ada data absensi.</div>
+                <div className="flex-1 flex items-center justify-center text-sm text-gray-400 italic">Belum ada data absensi untuk periode ini.</div>
               ) : (
-                <div className="flex flex-col flex-1 justify-center space-y-6">
-                  <div className="w-full h-8 flex rounded-full overflow-hidden bg-gray-100 shadow-inner">
+                <div className="flex flex-col flex-1 space-y-4 overflow-y-auto no-scrollbar pb-2">
+                  <div className="w-full h-6 flex rounded-full overflow-hidden bg-gray-100 shadow-inner shrink-0 mt-2">
                     {absenStats.map((stat, idx) => (
                       <div 
                         key={idx} 
                         style={{ width: `${(stat.value / totalAbsen) * 100}%`, backgroundColor: stat.color }}
-                        className="h-full flex items-center justify-center text-white text-xs font-bold transition-all"
+                        className="h-full flex items-center justify-center text-white text-[10px] font-bold transition-all"
                         title={`${stat.name}: ${stat.value}`}
                       >
                         {((stat.value / totalAbsen) * 100) > 10 ? `${Math.round((stat.value / totalAbsen) * 100)}%` : ''}
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mt-4">
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 shrink-0 border-b border-gray-200 dark:border-gray-700 pb-4">
                     {absenStats.map((stat, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stat.color }}></div>
-                        <span className="text-sm font-medium">{stat.name}</span>
-                        <span className="text-xs text-gray-500 ml-auto bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{stat.value}x</span>
+                      <div key={idx} className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stat.color }}></div>
+                        <span className="text-xs font-medium">{stat.name}</span>
+                        <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">{stat.value}x</span>
                       </div>
                     ))}
                   </div>
+
+                  {absenPeriod !== 'Semua Periode' && reguAbsenStats.length > 0 && (
+                     <div className="flex flex-col space-y-3 pt-2">
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Performa Tiap Regu</h4>
+                        {reguAbsenStats.map((r, i) => (
+                           <div key={i} className="flex flex-col gap-1.5">
+                              <div className="flex justify-between items-center text-xs">
+                                 <span className="font-semibold text-gray-700 dark:text-gray-300">Hari {r.hari}</span>
+                                 <span className="font-bold text-emerald-600 dark:text-emerald-400">{r.persentase}% Hadir</span>
+                              </div>
+                              <div className="w-full h-2.5 flex rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+                                 {r.hadir > 0 && <div style={{ width: `${(r.hadir/r.total)*100}%` }} className="bg-emerald-500 transition-all" title={`Hadir: ${r.hadir}`}></div>}
+                                 {r.lain > 0 && <div style={{ width: `${(r.lain/r.total)*100}%` }} className="bg-blue-500 transition-all" title={`Sakit/Izin/Kerja: ${r.lain}`}></div>}
+                                 {r.alpa > 0 && <div style={{ width: `${(r.alpa/r.total)*100}%` }} className="bg-red-500 transition-all" title={`Alpa: ${r.alpa}`}></div>}
+                              </div>
+                           </div>
+                        ))}
+                     </div>
+                  )}
                 </div>
               )}
             </div>
