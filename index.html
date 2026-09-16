@@ -12,6 +12,11 @@
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
   
   <!-- React & ReactDOM (Versi Stabil 18.2.0 via CDNJS) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
@@ -551,7 +556,7 @@
             <div className={`${ui.card} p-4 sm:p-6 rounded-xl flex flex-col justify-between overflow-hidden`}>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold">Grafik Pemasukan Jimpitan</h3>
+                  <h3 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-300">Grafik Pemasukan Jimpitan</h3>
                   <p className="text-xs text-gray-400">Statistik kas bulanan per tahun</p>
                 </div>
                 <select className={`p-1.5 text-sm border rounded-lg ${ui.input} font-semibold`} value={chartYear} onChange={e => setChartYear(e.target.value)}>
@@ -586,7 +591,7 @@
             <div className={`${ui.card} p-4 sm:p-6 rounded-xl flex flex-col max-h-[450px]`}>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold">Statistik Kehadiran {isAdmin || isPublicView ? 'Global' : 'Regu'}</h3>
+                  <h3 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-rose-500 dark:from-orange-400 dark:to-rose-400">Statistik Kehadiran {isAdmin || isPublicView ? 'Global' : 'Regu'}</h3>
                   <p className="text-xs text-gray-400">Akumulasi status kehadiran anggota ronda</p>
                 </div>
                 <select className={`p-1.5 text-xs sm:text-sm border rounded-lg ${ui.input} font-semibold max-w-[120px] sm:max-w-[140px]`} value={absenPeriod} onChange={e => setAbsenPeriod(e.target.value)}>
@@ -622,7 +627,7 @@
 
                   {absenPeriod !== 'Semua Periode' && reguAbsenStats.length > 0 && (
                      <div className="flex flex-col space-y-3 pt-2">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Performa Tiap Regu</h4>
+                        <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Performa Tiap Regu</h4>
                         {reguAbsenStats.map((r, i) => {
                            const isRaportMerah = r.persentase <= 50;
                            return (
@@ -630,7 +635,7 @@
                                 <div className="flex justify-between items-center text-xs">
                                    <div className="flex items-center gap-1.5">
                                       <span className={`font-semibold ${isRaportMerah ? 'text-red-700 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>Hari {r.hari}</span>
-                                      {isRaportMerah && <span className="text-[9px] font-bold bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300 px-1.5 py-0.5 rounded flex items-center gap-1"><AlertCircle size={10} /> Raport Merah</span>}
+                                      {isRaportMerah && <span className="text-[10px] font-bold bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300 p-1 rounded flex items-center justify-center" title="Raport Merah (Persentase <= 50%)"><AlertCircle size={12} /></span>}
                                    </div>
                                    <span className={`font-bold ${isRaportMerah ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{r.persentase}% Hadir</span>
                                 </div>
@@ -655,7 +660,7 @@
                 <div className={`p-2 rounded-lg ${theme.light} ${theme.text} print-hide`}>
                   <CalendarDays size={24} />
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">Daftar Regu Ronda Aktif & Koordinator</h3>
+                <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-cyan-500 dark:from-blue-400 dark:to-cyan-300">Daftar Regu Ronda Aktif & Koordinator</h3>
               </div>
               
               {activeJadwal.length === 0 ? (
@@ -726,7 +731,7 @@
               <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                 <div className="flex items-center gap-3">
                   <ClipboardList className="text-blue-500 w-6 h-6" />
-                  <h3 className="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-teal-500">
+                  <h3 className="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-teal-500 dark:from-blue-400 dark:to-teal-300">
                     Laporan Transparansi Ronda
                   </h3>
                 </div>
@@ -1920,21 +1925,21 @@
             const dateParts = t.tanggal.split('-');
             const d = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
             const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-            harianMap[key] = { tanggal: t.tanggal, hariInput: days[d.getDay()], jadwalId: t.jadwalId, total: 0, anggotaAlpa: [] };
+            harianMap[key] = { tanggal: t.tanggal, hariInput: days[d.getDay()], jadwalId: t.jadwalId, total: 0, anggotaKehadiran: [] };
           }
           harianMap[key].total += (Number(t.nominal) || 0);
         });
 
         filteredAbsensi.forEach(a => {
-           if (a && a.status !== 'Hadir') {
+           if (a) {
               const key = `${a.tanggal}_${a.jadwalId || 'Tanpa Regu'}`;
               if (!harianMap[key]) {
                 const dateParts = a.tanggal.split('-');
                 const d = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
                 const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-                harianMap[key] = { tanggal: a.tanggal, hariInput: days[d.getDay()], jadwalId: a.jadwalId, total: 0, anggotaAlpa: [] };
+                harianMap[key] = { tanggal: a.tanggal, hariInput: days[d.getDay()], jadwalId: a.jadwalId, total: 0, anggotaKehadiran: [] };
               }
-              harianMap[key].anggotaAlpa.push({ nama: getWargaName(a.wargaId), status: a.status, isLunas: a.isLunas });
+              harianMap[key].anggotaKehadiran.push({ nama: getWargaName(a.wargaId), status: a.status, isLunas: a.isLunas });
            }
         });
         
@@ -1958,9 +1963,9 @@
           rekapHarian.forEach(r => {
             const jw = jadwal.find(x => x && x.id === r.jadwalId);
             const regu = jw ? `Regu Hari ${jw.hari}` : "Tanpa Regu Terjadwal";
-            let kehadiran = r.anggotaAlpa.length > 0 
-              ? r.anggotaAlpa.map(a => `[${a.status}] ${a.nama}`).join(" | ") 
-              : "Hadir Semua";
+            let kehadiran = r.anggotaKehadiran.length > 0 
+              ? r.anggotaKehadiran.map(a => `[${a.status}] ${a.nama}`).join(" | ") 
+              : "Belum ada data";
             csvContent += `"${r.tanggal}","${regu}","${kehadiran}",${r.total}\n`;
           });
           const totalPemasukanHarian = rekapHarian.filter(r => {
@@ -2204,17 +2209,22 @@
                             {jw && <div className="text-[10px] uppercase text-gray-500 mt-1">Koord: {getWargaName(jw.koordinatorId)}</div>}
                           </td>
                           <td className="p-4 print:border-black print:border">
-                            {r.anggotaAlpa.length > 0 ? (
+                            {r.anggotaKehadiran.length > 0 ? (
                               <ul className="text-xs space-y-1">
-                                {r.anggotaAlpa.map((a, idx) => (
+                                {r.anggotaKehadiran.map((a, idx) => (
                                   <li key={idx} className="flex flex-col sm:flex-row sm:items-center gap-1">
-                                    <div><span className={a.status === 'Alpa' ? 'text-red-500 font-bold' : 'text-orange-500'}>[{a.status}]</span> {a.nama}</div>
+                                    <div>
+                                      <span className={
+                                        a.status === 'Hadir' ? 'text-emerald-500 font-bold' :
+                                        a.status === 'Alpa' ? 'text-red-500 font-bold' : 'text-orange-500 font-bold'
+                                      }>[{a.status}]</span> {a.nama}
+                                    </div>
                                     {a.status === 'Alpa' && <span className={`text-[10px] px-1.5 py-0.5 rounded ml-1 ${a.isLunas ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>{a.isLunas ? 'Denda Lunas' : `Denda: Rp ${(settings.nominalDenda || 0).toLocaleString('id-ID')}`}</span>}
                                   </li>
                                 ))}
                               </ul>
                             ) : (
-                              <span className="text-xs text-emerald-600 font-bold">Hadir Semua</span>
+                              <span className="text-xs text-gray-500 italic">Belum ada absen</span>
                             )}
                           </td>
                           <td className="p-4 text-right font-bold text-emerald-600 print:text-black print:border-black print:border">
@@ -3111,6 +3121,8 @@
         try { localStorage.setItem('themeColor', themeColor); } catch(e) {} 
       }, [themeColor]);
 
+      const [hasCacheData, setHasCacheData] = useState(false);
+
       useEffect(() => {
         const applyDataToState = (dbData) => {
             if (dbData && typeof dbData === 'object' && Object.keys(dbData).length > 0) {
@@ -3124,7 +3136,7 @@
                 activePeriode: rawSettings.activePeriode || ''
               });
 
-              const rawWarga = dbData.warga && dbData.warga.length > 0 ? dbData.warga : initialWarga;
+              const rawWarga = dbData.warga && dbData.warga.length > 0 ? dbData.warga : [];
               const cleanWarga = rawWarga.map(w => {
                  if (w && typeof w === 'object') {
                     const { foto, ...rest } = w;
@@ -3138,7 +3150,7 @@
               });
               
               setWarga(cleanWarga);
-              let loadedJadwal = dbData.jadwal && dbData.jadwal.length > 0 ? dbData.jadwal : initialJadwal;
+              let loadedJadwal = dbData.jadwal && dbData.jadwal.length > 0 ? dbData.jadwal : [];
               const validPeriods = loadedJadwal.map(j => j.periode).filter(p => p && p !== 'Bulan Saat Ini');
               if (validPeriods.length > 0) {
                  const counts = {};
@@ -3147,12 +3159,10 @@
                  loadedJadwal = loadedJadwal.map(j => j.periode === 'Bulan Saat Ini' ? { ...j, periode: rawSettings.activePeriode || mostCommonPeriod } : j);
               }
               setJadwal(loadedJadwal);
-              setAbsensi(dbData.absensi && dbData.absensi.length > 0 ? dbData.absensi : initialAbsensi);
-              setJimpitan(dbData.jimpitan && dbData.jimpitan.length > 0 ? dbData.jimpitan : initialJimpitan);
-              const loadedAccounts = dbData.accounts && dbData.accounts.length > 0 ? dbData.accounts : initialAccounts;
+              setAbsensi(dbData.absensi && dbData.absensi.length > 0 ? dbData.absensi : []);
+              setJimpitan(dbData.jimpitan && dbData.jimpitan.length > 0 ? dbData.jimpitan : []);
+              const loadedAccounts = dbData.accounts && dbData.accounts.length > 0 ? dbData.accounts : [];
               setAccounts(loadedAccounts.map(a => a.role === 'Koordinator' ? { ...a, role: 'Koordinator Ronda' } : a));
-            } else {
-              setWarga(initialWarga); setJadwal(initialJadwal); setAbsensi(initialAbsensi); setJimpitan(initialJimpitan); setAccounts(initialAccounts);
             }
         };
 
@@ -3164,6 +3174,7 @@
                const cachedData = JSON.parse(cachedText);
                applyDataToState(cachedData);
                hasCache = true;
+               setHasCacheData(true);
                setIsLoadingDB(false); // remove loading screen immediately
             }
           } catch(e) {}
@@ -3174,12 +3185,13 @@
           setDbError(false);
           try {
             const dbData = await window.ambilDataDariSpreadsheet();
-            applyDataToState(dbData);
+            if (dbData) {
+              applyDataToState(dbData);
+            } else if (!hasCache) {
+              setDbError(true);
+            }
           } catch (err) {
             setDbError(true);
-            if (!hasCache) {
-               setWarga(initialWarga); setJadwal(initialJadwal); setAbsensi(initialAbsensi); setJimpitan(initialJimpitan); setAccounts(initialAccounts);
-            }
           } finally {
             setIsLoadingDB(false);
           }
@@ -3298,6 +3310,23 @@
         );
       }
 
+      if (dbError && !hasCacheData) {
+        return (
+          <div className={`min-h-screen flex items-center justify-center font-bold text-lg bg-gray-50 text-gray-800`}>
+            <div className="flex flex-col items-center gap-4 text-center px-4">
+              <AlertCircle size={64} className="text-red-500" />
+              <div>
+                <p className="text-xl">Gagal memuat data aplikasi</p>
+                <p className="text-sm font-normal text-gray-500 mt-2">Koneksi internet Anda lambat atau bermasalah.<br/>Silakan coba lagi beberapa saat.</p>
+              </div>
+              <button onClick={() => window.location.reload()} className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-blue-700 transition">
+                 Muat Ulang Aplikasi
+              </button>
+            </div>
+          </div>
+        );
+      }
+
       if (!currentUser && !isPublicView) {
         return <LoginScreen ctx={ctx} />;
       }
@@ -3320,11 +3349,11 @@
 
       if (isPublicView) {
         return (
-          <div className={`min-h-screen font-sans ${ui.bg}`}>
+          <div className={`min-h-screen font-sans ${ui.bg} ${isDarkMode ? 'dark' : ''}`}>
             {installBanner}
-            {dbError && (
-               <div className="bg-red-500 text-white text-center text-xs py-1 px-4 font-semibold">
-                  Gagal terhubung ke server database (Google Apps Script). Menggunakan data default (Offline Mode).
+            {dbError && hasCacheData && (
+               <div className="bg-orange-500 text-white text-center text-xs py-1 px-4 font-semibold">
+                  Aplikasi dalam Mode Offline (Koneksi lambat). Menggunakan data cache terakhir.
                </div>
             )}
             
@@ -3362,7 +3391,7 @@
 
             <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
               <div className="mb-8 text-center sm:text-left">
-                <h2 className="text-2xl sm:text-3xl font-black">Portal Transparansi Warga</h2>
+                <h2 className="text-2xl sm:text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-500 dark:from-blue-400 dark:to-indigo-300">Portal Transparansi Warga</h2>
               </div>
               <Dashboard ctx={ctx} />
             </main>
@@ -3371,13 +3400,13 @@
       }
 
       return (
-        <div className={`flex h-screen font-sans transition-colors duration-200 ${ui.bg}`}>
-          {toastMessage && (
-            <div className="fixed top-5 right-5 z-[999] animate-fade-in bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3">
-              <CheckCircle size={20} className="text-white" />
-              <span className="font-semibold text-sm">{toastMessage}</span>
-            </div>
-          )}
+        <div className={`flex h-screen font-sans transition-colors duration-200 ${ui.bg} ${isDarkMode ? 'dark' : ''}`}>
+            {toastMessage && (
+              <div className="fixed top-5 right-5 z-[999] animate-fade-in bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3">
+                <CheckCircle size={20} className="text-white" />
+                <span className="font-semibold text-sm">{toastMessage}</span>
+              </div>
+            )}
           
           {confirmDialog && (
             <div className="fixed inset-0 bg-black/60 z-[1000] flex items-center justify-center p-4 animate-fade-in print-hide">
@@ -3393,8 +3422,8 @@
             </div>
           )}
 
-          {dbError && (
-             <div className="fixed bottom-5 right-5 z-[998] bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded shadow-lg text-xs font-bold flex items-center gap-2">
+          {dbError && hasCacheData && (
+             <div className="fixed bottom-5 right-5 z-[998] bg-orange-100 border border-orange-400 text-orange-700 px-4 py-2 rounded shadow-lg text-xs font-bold flex items-center gap-2">
                 <AlertCircle size={14} /> Offline Mode Aktif
              </div>
           )}
