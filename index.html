@@ -628,14 +628,28 @@
                   {absenPeriod !== 'Semua Periode' && reguAbsenStats.length > 0 && (
                      <div className="flex flex-col space-y-3 pt-2">
                         <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Performa Tiap Regu</h4>
-                        {reguAbsenStats.map((r, i) => {
-                           const isRaportMerah = r.persentase <= 50;
-                           return (
+                        {(() => {
+                           // Hitung Juara khusus untuk periode absensi yang sedang dilihat
+                           const jadwalInPeriod = jadwal.filter(j => j && j.periode === absenPeriod && myJadwalIds.includes(j.id));
+                           const currentJuaraIds = getJuaraReguIds(jadwalInPeriod);
+                           
+                           return reguAbsenStats.map((r, i) => {
+                              const isRaportMerah = r.persentase <= 50;
+                              const isJuara = currentJuaraIds.includes(r.id);
+                              return (
                              <div key={i} className={`flex flex-col gap-1.5 ${isRaportMerah ? 'bg-red-50 dark:bg-red-900/20 p-2 rounded-lg border border-red-200 dark:border-red-800/50 animate-pulse' : 'p-1'}`}>
                                 <div className="flex justify-between items-center text-xs">
                                    <div className="flex items-center gap-1.5">
                                       <span className={`font-semibold ${isRaportMerah ? 'text-red-700 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>Hari {r.hari}</span>
                                       {isRaportMerah && <span className="text-[10px] font-bold bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300 p-1 rounded flex items-center justify-center" title="Raport Merah (Persentase <= 50%)"><AlertCircle size={12} /></span>}
+                                      {isJuara && !isRaportMerah && (
+                                        <span className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400 text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1">
+                                          <Award size={10} /> Juara
+                                        </span>
+                                      )}
+                                      {!isRaportMerah && !isJuara && r.persentase > 50 && (
+                                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">Baik</span>
+                                      )}
                                    </div>
                                    <span className={`font-bold ${isRaportMerah ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{r.persentase}% Hadir</span>
                                 </div>
@@ -646,7 +660,8 @@
                                 </div>
                              </div>
                            );
-                        })}
+                           });
+                        })()}
                      </div>
                   )}
                 </div>
@@ -3273,22 +3288,24 @@
           if (!j || !statsByJadwal[j.id]) continue;
           const stats = statsByJadwal[j.id];
           if (stats.total > 0) {
-             scores.push({ id: j.id, alpa: stats.alpa, hadir: stats.hadir, total: stats.total });
+             const persentase = Math.round((stats.hadir / stats.total) * 100);
+             const alpaPersen = Math.round((stats.alpa / stats.total) * 100);
+             scores.push({ id: j.id, alpa: stats.alpa, hadir: stats.hadir, total: stats.total, persentase, alpaPersen });
           }
         }
         
         if (scores.length === 0) return [];
         
-        // Urutkan berdasarkan Alpa paling sedikit, kemudian Hadir paling banyak
-        scores.sort((a, b) => a.alpa - b.alpa || b.hadir - a.hadir);
+        // Logika Juara: Urutkan berdasarkan Persentase Hadir tertinggi, jika sama, pilih Persentase Alpa terendah
+        scores.sort((a, b) => b.persentase - a.persentase || a.alpaPersen - b.alpaPersen);
         
-        const bestAlpa = scores[0].alpa;
-        const bestHadir = scores[0].hadir;
+        const bestPersentase = scores[0].persentase;
+        const bestAlpaPersen = scores[0].alpaPersen;
         
-        // Kalau tidak ada yang hadir sama sekali, tidak ada juara
-        if (bestHadir === 0) return []; 
+        // Syarat Juara: Performanya harus "Baik" (Persentase > 50%) dan harus ada setidaknya 1 Hadir
+        if (scores[0].hadir === 0 || bestPersentase <= 50) return []; 
         
-        const topScores = scores.filter(s => s.alpa === bestAlpa && s.hadir === bestHadir);
+        const topScores = scores.filter(s => s.persentase === bestPersentase && s.alpaPersen === bestAlpaPersen);
         return topScores.map(s => s.id);
       };
 
