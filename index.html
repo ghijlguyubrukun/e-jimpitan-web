@@ -2717,42 +2717,70 @@
         });
       };
 
-      const handleRestoreData = (e) => {
+            const handleRestoreData = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
+        // Kosongkan input segera agar user bisa memilih file yang sama lagi jika diperlukan
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+
         requestConfirm('PERINGATAN: Memulihkan data (Restore) akan menimpa/mengganti seluruh data yang ada saat ini. Anda yakin?', () => {
           const reader = new FileReader();
+          
           reader.onload = async (event) => {
+            let data;
+            
+            // 1. Coba parse JSON terlebih dahulu
             try {
-              const data = JSON.parse(event.target.result);
-              if (data.warga && data.jadwal && data.absensi && data.jimpitan && data.accounts && data.settings) {
+              data = JSON.parse(event.target.result);
+            } catch (err) {
+              console.error("Error parse JSON:", err);
+              showToast('Gagal: File JSON rusak atau tidak terbaca.');
+              return; // Hentikan proses jika JSON benar-benar tidak valid
+            }
+
+            // 2. Lanjutkan update data jika JSON valid
+            try {
+              if (data && data.warga && data.jadwal && data.absensi && data.jimpitan && data.accounts && data.settings) {
+                
+                // Pastikan accounts adalah array sebelum di-map
+                const accountsData = Array.isArray(data.accounts) 
+                  ? data.accounts.map(a => a.role === 'Koordinator' ? { ...a, role: 'Koordinator Ronda' } : a)
+                  : [];
+
                 // Update Local State
                 setWarga(data.warga);
                 setJadwal(data.jadwal);
                 setAbsensi(data.absensi);
                 setJimpitan(data.jimpitan);
-                setAccounts(data.accounts.map(a => a.role === 'Koordinator' ? { ...a, role: 'Koordinator Ronda' } : a));
+                setAccounts(accountsData);
                 setSettings(data.settings);
 
-                // Sync to Server (Batch process could take time)
+                // Sync to Server 
                 showToast('Mulai mengunggah data ke server...');
                 await syncData('warga', data.warga);
                 await syncData('jadwal', data.jadwal);
                 await syncData('absensi', data.absensi);
                 await syncData('jimpitan', data.jimpitan);
-                await syncData('accounts', data.accounts);
+                await syncData('accounts', accountsData);
                 await syncData('settings', data.settings);
 
                 showToast('Pemulihan data berhasil!');
-                e.target.value = null; // reset input
               } else {
-                showToast('Gagal: Format file backup tidak valid.');
+                showToast('Gagal: Format file backup tidak valid (data tidak lengkap).');
               }
             } catch (err) {
-              showToast('Gagal: File JSON rusak atau tidak terbaca.');
+              console.error("Error saat apply restore:", err);
+              showToast('Gagal memproses data: ' + err.message);
             }
           };
+          
+          reader.onerror = () => {
+            showToast('Gagal membaca file.');
+          };
+          
           reader.readAsText(file);
         });
       };
