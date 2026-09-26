@@ -36,7 +36,74 @@
     // URL WEB APP BARU SUDAH DISISIPKAN DI SINI
     const scriptURL = 'https://script.google.com/macros/s/AKfycbxM33tM3kBw_Z6dl2kRc5Mv70OIZ8XPothhTGCO_kgl1lDJaB1cmUzD3TSqSt_YVA1G/exec';
 
+    window.simpanDataBatchKeSpreadsheet = async function(dataMap, action = 'replace', retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 45000); 
+          const response = await fetch(scriptURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: action, batch: true, dataMap: dataMap }),
+            redirect: 'follow', 
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          if (!response.ok) throw new Error(`HTTP Error Status: ${response.status}`);
+          const text = await response.text();
+          try {
+            const hasil = JSON.parse(text);
+            if (hasil.status === 'success') return true;
+            throw new Error("Gagal dari GAS");
+          } catch(e) {
+            if (text.toLowerCase().includes("<!doctype html>") || text.toLowerCase().includes("<html")) return true;
+            throw new Error("Respon bukan JSON valid.");
+          }
+        } catch (error) {
+          if (i === retries - 1) return false;
+          await new Promise(res => setTimeout(res, 2000 * (i + 1)));
+        }
+      }
+      return false;
+    };
+
+    window.syncQueue = [];
+    window.isSyncing = false;
+    
+    window.processSyncQueue = async function() {
+        if (window.isSyncing || window.syncQueue.length === 0) return;
+        window.isSyncing = true;
+        
+        const batch = [...window.syncQueue];
+        window.syncQueue = [];
+        
+        const dataMap = {};
+        batch.forEach(req => {
+           if (!dataMap[req.key]) dataMap[req.key] = [];
+           dataMap[req.key].push(...req.data);
+        });
+        
+        try {
+            const success = await window.simpanDataBatchKeSpreadsheet(dataMap, 'append');
+            if (!success) window.syncQueue.unshift(...batch);
+        } catch(e) {
+            window.syncQueue.unshift(...batch);
+        }
+        
+        window.isSyncing = false;
+        if (window.syncQueue.length > 0) {
+            setTimeout(window.processSyncQueue, 1000);
+        }
+    };
+
     window.simpanDataKeSpreadsheet = async function(kunciData, dataArrayBaru, action = 'replace', retries = 3) {
+      if (action === 'append') {
+          let cleanedData = Array.isArray(dataArrayBaru) ? dataArrayBaru : [dataArrayBaru];
+          window.syncQueue.push({ key: kunciData, data: cleanedData });
+          setTimeout(window.processSyncQueue, 500);
+          return true; // Beri respons sukses langsung agar UI real-time
+      }
+
       for (let i = 0; i < retries; i++) {
         try {
           let cleanedData = Array.isArray(dataArrayBaru)
@@ -2078,10 +2145,12 @@
         setJimpitan(finalJimpitan);
         setAbsensi(finalAbsensi);
         
-        const success1 = await syncData("jimpitan", finalJimpitan);
-        const success2 = await syncData("absensi", finalAbsensi);
+        const success = await window.simpanDataBatchKeSpreadsheet({
+            jimpitan: finalJimpitan,
+            absensi: finalAbsensi
+        }, 'replace');
         
-        if (success1 && success2) {
+        if (success) {
             showToast(`Perubahan laporan tanggal ${tanggal} berhasil disimpan!`);
             setEditModal(null);
         } else {
@@ -2097,10 +2166,12 @@
              setJimpitan(newJimpitan);
              setAbsensi(newAbsensi);
              
-             const s1 = await syncData("jimpitan", newJimpitan);
-             const s2 = await syncData("absensi", newAbsensi);
+             const s = await window.simpanDataBatchKeSpreadsheet({
+                 jimpitan: newJimpitan,
+                 absensi: newAbsensi
+             }, 'replace');
              
-             if(s1 && s2) {
+             if(s) {
                  setEditModal(null);
                  showToast("Laporan berhasil dihapus secara total.");
              } else {
@@ -3241,6 +3312,17 @@
         };
 
         muatData();
+        
+        // Polling background untuk Realtime Update tanpa re-render keseluruhan
+        const intervalId = setInterval(async () => {
+           if (window.isSyncing) return; // Jangan poll saat sedang upload
+           try {
+             const latest = await window.ambilDataDariSpreadsheet(1);
+             if (latest) applyDataToState(latest);
+           } catch(e) {}
+        }, 10000);
+        
+        return () => clearInterval(intervalId);
       }, []);
 
       const syncData = async (key, dataArray, action = 'replace') => {
