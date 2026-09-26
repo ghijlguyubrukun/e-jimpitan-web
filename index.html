@@ -50,7 +50,7 @@
             : dataArrayBaru;
 
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000); 
+          const timeoutId = setTimeout(() => controller.abort(), 45000); 
 
           const response = await fetch(scriptURL, {
             method: 'POST',
@@ -93,7 +93,7 @@
       for (let i = 0; i < retries; i++) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000);
+          const timeoutId = setTimeout(() => controller.abort(), 45000);
 
           const response = await fetch(scriptURL, { signal: controller.signal });
           clearTimeout(timeoutId);
